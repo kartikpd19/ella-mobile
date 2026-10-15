@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "ella",
+    "name": "Ella",
     "slug": "ella",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -26,11 +26,30 @@
     "plugins": [
       "expo-router",
       [
+        "expo-camera",
+        {
+          "cameraPermission": "Ella uses the camera to scan the QR code shown on your computer so you can sign in.",
+          "recordAudioAndroid": false
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "backgroundColor": "#208AEF",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Ella uses the microphone to record your patient visits."
+        }
+      ],
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "Ella uses your calendar to show your upcoming patient visits."
         }
       ]
     ],

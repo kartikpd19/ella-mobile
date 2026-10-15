@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ella Device Preview</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@600&display=swap">
+<style>
+  :root {
+    --bg: #eef0f3;
+    --bg-dot: #d9dde3;
+    --bar: rgba(255, 255, 255, 0.85);
+    --bar-border: #dde1e6;
+    --text: #1b1f24;
+    --muted: #616a75;
+    --seg-bg: #e3e6ea;
+    --seg-active: #ffffff;
+    --seg-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+    --frame: #16181b;
+    --frame-edge: #3a3e44;
+    --screen: #ffffff;
+    --accent: #208aef;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1114;
+      --bg-dot: #1d2026;
+      --bar: rgba(22, 24, 28, 0.85);
+      --bar-border: #262a31;
+      --text: #e8eaed;
+      --muted: #9aa3ad;
+      --seg-bg: #22262c;
+      --seg-active: #363b43;
+      --seg-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+      --frame: #050506;
+      --frame-edge: #2c3036;
+      --screen: #000000;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1114;
+    --bg-dot: #1d2026;
+    --bar: rgba(22, 24, 28, 0.85);
+    --bar-border: #262a31;
+    --text: #e8eaed;
+    --muted: #9aa3ad;
+    --seg-bg: #22262c;
+    --seg-active: #363b43;
+    --seg-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    --frame: #050506;
+    --frame-edge: #2c3036;
+    --screen: #000000;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg);
+    background-image: radial-gradient(var(--bg-dot) 1px, transparent 1px);
+    background-size: 20px 20px;
+    color: var(--text);
+    font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 10px 16px;
+    background: var(--bar);
+    border-bottom: 1px solid var(--bar-border);
+    backdrop-filter: blur(12px);
+    flex-wrap: wrap;
+  }
+  .title { font-weight: 600; }
+  .title span { color: var(--muted); font-weight: 400; margin-left: 6px; }
+  .spacer { flex: 1; }
+
+  .seg {
+    display: inline-flex;
+    padding: 3px;
+    border-radius: 10px;
+    background: var(--seg-bg);
+  }
+  .seg button {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-weight: 500;
+    padding: 6px 14px;
+    border-radius: 7px;
+    cursor: pointer;
+  }
+  .seg button[aria-checked="true"] {
+    background: var(--seg-active);
+    color: var(--text);
+    box-shadow: var(--seg-shadow);
+  }
+  .seg button:focus-visible, .icon-btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .icon-btn {
+    appearance: none;
+    border: 1px solid var(--bar-border);
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    padding: 6px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    text-decoration: none;
+  }
+  .icon-btn:hover { background: var(--seg-bg); }
+
+  main {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 48px;
+    padding: 24px 16px;
+  }
+
+  .device-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+  .device-wrap[hidden] { display: none; }
+  .label { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+
+  /* The slot holds the scaled footprint; the device inside is drawn at real size. */
+  .slot { position: relative; }
+  .device {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform-origin: top left;
+    background: var(--frame);
+    box-shadow:
+      inset 0 0 0 2px var(--frame-edge),
+      0 24px 60px rgba(0, 0, 0, 0.25),
+      0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+  .screen {
+    position: absolute;
+    overflow: hidden;
+    background: var(--screen);
+  }
+  .screen iframe {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    display: block;
+    background: var(--screen);
+  }
+
+  .phone { width: 417px; height: 876px; border-radius: 64px; }
+  .phone .screen { inset: 12px; border-radius: 52px; }
+
+  /* iOS status bar and home indicator, from the Figma StatusBar / HomeIndicator components. */
+  .status-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 47px;
+    z-index: 2;
+    pointer-events: none;
+  }
+  .status-bar .notch {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 172px;
+    height: 32px;
+    transform: translateX(-50%);
+  }
+  .status-bar .time {
+    position: absolute;
+    top: 15px;
+    left: calc(16.67% - 11px);
+    width: 54px;
+    transform: translateX(-50%);
+    font: 600 16px/21px Inter, system-ui, sans-serif;
+    letter-spacing: -0.32px;
+    text-align: center;
+    color: #000;
+  }
+  .status-bar .right {
+    position: absolute;
+    top: 19px;
+    left: calc(83.33% - 0.3px);
+    width: 77.401px;
+    height: 13px;
+    transform: translateX(-50%);
+  }
+  .home-indicator {
+    position: absolute;
+    bottom: 8px;
+    left: 50%;
+    width: 134px;
+    height: 5px;
+    margin-left: -67px;
+    border-radius: 100px;
+    background: #000;
+    z-index: 2;
+    pointer-events: none;
+  }
+
+  .tablet { width: 856px; height: 1216px; border-radius: 44px; }
+  .tablet .screen { inset: 18px; border-radius: 26px; }
+  .tablet .camera {
+    position: absolute;
+    top: 7px;
+    left: 50%;
+    width: 6px;
+    height: 6px;
+    margin-left: -3px;
+    border-radius: 50%;
+    background: #222;
+    z-index: 2;
+  }
+</style>
+</head>
+<body>
+  <header>
+    <div class="title">Ella<span>device preview</span></div>
+    <div class="seg" role="radiogroup" aria-label="Device">
+      <button role="radio" data-mode="mobile">Mobile</button>
+      <button role="radio" data-mode="tablet">Tablet</button>
+      <button role="radio" data-mode="both">Both</button>
+    </div>
+    <div class="spacer"></div>
+    <button class="icon-btn" id="reload" type="button">Reload</button>
+    <a class="icon-btn" href="/" target="_blank" rel="noopener">Open app</a>
+  </header>
+
+  <main id="stage">
+    <div class="device-wrap" id="phone-wrap">
+      <div class="slot">
+        <div class="device phone">
+          <div class="screen">
+            <iframe title="Mobile preview" src="/" allow="camera"></iframe>
+            <div class="status-bar" aria-hidden="true">
+              <img class="notch" src="preview-assets/notch.svg" alt="">
+              <div class="time">9:41</div>
+              <img class="right" src="preview-assets/status-right.svg" alt="">
+            </div>
+            <div class="home-indicator" aria-hidden="true"></div>
+          </div>
+        </div>
+      </div>
+      <div class="label">iPhone · 393 × 852</div>
+    </div>
+    <div class="device-wrap" id="tablet-wrap">
+      <div class="slot">
+        <div class="device tablet">
+          <div class="camera"></div>
+          <div class="screen"><iframe title="Tablet preview" src="/" allow="camera"></iframe></div>
+        </div>
+      </div>
+      <div class="label">iPad · 820 × 1180</div>
+    </div>
+  </main>
+
+<script>
+  const stage = document.getElementById('stage');
+  const wraps = {
+    mobile: document.getElementById('phone-wrap'),
+    tablet: document.getElementById('tablet-wrap'),
+  };
+  const sizes = { mobile: [417, 876], tablet: [856, 1216] };
+  const buttons = [...document.querySelectorAll('.seg button')];
+  const modes = ['mobile', 'tablet', 'both'];
+  const GAP = 48;
+  const LABEL = 28;
+  let mode = 'both';
+
+  try {
+    const saved = location.hash.slice(1) || localStorage.getItem('ella-preview-mode');
+    if (modes.includes(saved)) mode = saved;
+  } catch {}
+
+  function visible() {
+    return mode === 'both' ? ['mobile', 'tablet'] : [mode];
+  }
+
+  function layout() {
+    const shown = visible();
+    const cs = getComputedStyle(stage);
+    const availW = stage.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    const availH = stage.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) - LABEL;
+    const totalW = shown.reduce((w, k) => w + sizes[k][0], 0) + GAP * (shown.length - 1);
+    const maxH = Math.max(...shown.map(k => sizes[k][1]));
+    const scale = Math.min(1, (availW - GAP * (shown.length - 1)) / (totalW - GAP * (shown.length - 1)), availH / maxH);
+
+    for (const key of Object.keys(wraps)) {
+      const wrap = wraps[key];
+      wrap.hidden = !shown.includes(key);
+      const [w, h] = sizes[key];
+      const slot = wrap.querySelector('.slot');
+      slot.style.width = w * scale + 'px';
+      slot.style.height = h * scale + 'px';
+      wrap.querySelector('.device').style.transform = `scale(${scale})`;
+    }
+  }
+
+  function setMode(next) {
+    mode = next;
+    buttons.forEach(b => {
+      const on = b.dataset.mode === mode;
+      b.setAttribute('aria-checked', on);
+      b.tabIndex = on ? 0 : -1;
+    });
+    try { localStorage.setItem('ella-preview-mode', mode); } catch {}
+    history.replaceState(null, '', '#' + mode);
+    layout();
+  }
+
+  buttons.forEach(b => {
+    b.addEventListener('click', () => setMode(b.dataset.mode));
+    b.addEventListener('keydown', e => {
+      const dir = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+      if (!dir) return;
+      e.preventDefault();
+      const next = modes[(modes.indexOf(mode) + dir + modes.length) % modes.length];
+      setMode(next);
+      buttons[modes.indexOf(next)].focus();
+    });
+  });
+
+  document.getElementById('reload').addEventListener('click', () => {
+    document.querySelectorAll('iframe').forEach(f => { f.src = f.src; });
+  });
+
+  window.addEventListener('hashchange', () => {
+    const next = location.hash.slice(1);
+    if (modes.includes(next) && next !== mode) setMode(next);
+  });
+
+  new ResizeObserver(layout).observe(stage);
+  setMode(mode);
+</script>
+</body>
+</html>
