@@ -1,0 +1,114 @@
+import { StyleSheet, Text, View } from 'react-native';
+
+import { AuthColors } from '@/components/auth-screen';
+import { EllaColors, EllaFonts, EllaSpacing } from '@/constants/ella-tokens';
+import type { NoteStatus, Visit, VisitStatus } from '@/lib/sample-visits';
+
+// design.md › Status ring — `status-color ring` bar colors.
+const RING_COLORS: Record<VisitStatus, string> = {
+  Scheduled: EllaColors.accentsBlue,
+  Arrived: '#887EE2',
+  Waiting: EllaColors.accentsPurple,
+  Rooming: EllaColors.accentsPink,
+  Consultation: EllaColors.accentsYellow,
+  Complete: '#059655',
+  'No-show': '#808080',
+};
+
+// design.md › Badges — `Recording Status` variants.
+const BADGES: Record<NoteStatus, { background: string; text: string; border?: string; label: string }> = {
+  Draft: { background: '#F3F4F8', text: '#3A4050', label: 'Draft' },
+  'In Progress': { background: '#FCEFD4', text: '#F17A29', label: 'In Progress' },
+  'In-review': { background: '#F3F0FF', text: '#1F54E1', label: 'In-review' },
+  Imported: { background: '#ECFDF3', text: '#059655', label: 'Imported' },
+  Canceled: { background: 'rgba(212,213,218,0.55)', text: 'rgba(58,64,80,0.62)', border: 'rgba(0,0,0,0.4)', label: 'Canceled' },
+};
+
+export function VisitRow({ visit }: { visit: Visit }) {
+  const ring = RING_COLORS[visit.status];
+  const badge = visit.note ? BADGES[visit.note] : undefined;
+
+  return (
+    <View
+      style={styles.row}
+      accessible
+      accessibilityLabel={`${visit.patient}, ${visit.time}, ${visit.reason}. ${visit.status}${badge ? `. Note ${badge.label}` : ''}`}>
+      <View style={[styles.ring, { borderColor: ring }]}>
+        <View style={[styles.ringBar, { backgroundColor: ring }]} />
+      </View>
+
+      <View style={styles.text}>
+        <Text style={styles.patient} numberOfLines={1}>
+          {visit.patient}
+        </Text>
+        <Text style={styles.meta} numberOfLines={1}>
+          {visit.time} · {visit.reason} · {visit.status}
+        </Text>
+      </View>
+
+      {badge && (
+        <View
+          style={[
+            styles.badge,
+            { backgroundColor: badge.background },
+            badge.border ? { borderWidth: 1, borderStyle: 'dashed', borderColor: badge.border } : null,
+          ]}>
+          <Text style={[styles.badgeLabel, { color: badge.text }]}>{badge.label}</Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: EllaSpacing.sm,
+    paddingVertical: EllaSpacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: AuthColors.hairline,
+  },
+  // design.md: 30×30 ring with a 4×15 bar, radius 35.
+  ring: {
+    width: 30,
+    height: 30,
+    borderRadius: 35,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ringBar: {
+    width: 4,
+    height: 15,
+    borderRadius: 2,
+  },
+  text: {
+    flex: 1,
+    gap: 2,
+  },
+  patient: {
+    fontFamily: EllaFonts.interBold,
+    fontSize: 14,
+    letterSpacing: 0.84,
+    color: EllaColors.contentInk,
+  },
+  // design.md `caption` (12 / 16) in `Content-muted`.
+  meta: {
+    fontFamily: EllaFonts.interRegular,
+    fontSize: 12,
+    lineHeight: 16,
+    color: EllaColors.contentMuted,
+  },
+  // design.md: height 24, padding 4 × 8, radius 16.
+  badge: {
+    height: 24,
+    paddingHorizontal: EllaSpacing.xs,
+    borderRadius: 16,
+    justifyContent: 'center',
+  },
+  badgeLabel: {
+    fontFamily: EllaFonts.interMedium,
+    fontSize: 12,
+  },
+});

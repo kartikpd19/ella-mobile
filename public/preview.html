@@ -119,6 +119,26 @@
   }
   .icon-btn:hover { background: var(--seg-bg); }
 
+  .screen-pick {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--muted);
+  }
+  .screen-pick select {
+    font: inherit;
+    color: var(--text);
+    background: var(--seg-bg);
+    border: 1px solid var(--bar-border);
+    border-radius: 8px;
+    padding: 5px 8px;
+    cursor: pointer;
+  }
+  .screen-pick select:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
   main {
     flex: 1;
     min-height: 0;
@@ -240,9 +260,23 @@
       <button role="radio" data-mode="tablet">Tablet</button>
       <button role="radio" data-mode="both">Both</button>
     </div>
+    <label class="screen-pick">Screen
+      <select id="screen">
+        <option value="/">Start of app (login)</option>
+        <option value="/login">Login</option>
+        <option value="/verify?email=john.smith@mayo.edu">Enter code (OTP)</option>
+        <option value="/scan">QR scanner</option>
+        <option value="/welcome?email=john.smith@mayo.edu">Welcome / permissions</option>
+        <option value="/home?state=empty&amp;email=john.smith@mayo.edu">Home: not synced</option>
+        <option value="/home?state=syncing&amp;email=john.smith@mayo.edu">Home: syncing</option>
+        <option value="/home?state=list&amp;email=john.smith@mayo.edu">Home: visit list</option>
+        <option value="/home?state=list&amp;sheet=expanded&amp;email=john.smith@mayo.edu">Home: visit list (sheet expanded)</option>
+        <option value="/privacy">Privacy Policy</option>
+      </select>
+    </label>
     <div class="spacer"></div>
     <button class="icon-btn" id="reload" type="button">Reload</button>
-    <a class="icon-btn" href="/" target="_blank" rel="noopener">Open app</a>
+    <a class="icon-btn" id="open-app" href="/" target="_blank" rel="noopener">Open app</a>
   </header>
 
   <main id="stage">
@@ -339,8 +373,36 @@
     });
   });
 
+  // Screen picker: jump straight to any screen instead of clicking through the flow.
+  const frames = [...document.querySelectorAll('iframe')];
+  const screenSelect = document.getElementById('screen');
+  const openApp = document.getElementById('open-app');
+
+  function showScreen(path) {
+    frames.forEach(f => { f.src = path; });
+    openApp.href = path;
+    try { localStorage.setItem('ella-preview-screen', path); } catch {}
+  }
+
+  // ?screen=home in the link wins; otherwise reuse the last screen picked.
+  const linkedScreen = new URLSearchParams(location.search).get('screen');
+  const linkedOption = linkedScreen && [...screenSelect.options].find(o => o.value.startsWith('/' + linkedScreen));
+  if (linkedOption) {
+    screenSelect.value = linkedOption.value;
+  } else {
+    try {
+      const savedScreen = localStorage.getItem('ella-preview-screen');
+      if ([...screenSelect.options].some(o => o.value === savedScreen)) screenSelect.value = savedScreen;
+    } catch {}
+  }
+  showScreen(screenSelect.value);
+  screenSelect.addEventListener('change', () => showScreen(screenSelect.value));
+
+  // Reloads whatever screen each frame is on now, even after navigating inside the app.
   document.getElementById('reload').addEventListener('click', () => {
-    document.querySelectorAll('iframe').forEach(f => { f.src = f.src; });
+    frames.forEach(f => {
+      try { f.contentWindow.location.reload(); } catch { f.src = f.src; }
+    });
   });
 
   window.addEventListener('hashchange', () => {

@@ -6,6 +6,7 @@
     "@expo-google-fonts/inter": "^0.4.2",
     "@expo-google-fonts/roboto-mono": "^0.4.2",
     "@expo/ui": "~57.0.24",
+    "@gorhom/bottom-sheet": "^5.2.14",
     "expo": "~57.0.29",
     "expo-audio": "~57.0.5",
     "expo-calendar": "~57.0.5",

@@ -138,7 +138,7 @@ export default function WelcomeScreen() {
 
   function handleContinue() {
     router.dismissAll();
-    router.replace('/home');
+    router.replace({ pathname: '/home', params: email ? { email } : {} });
   }
 
   const descriptions: Record<PermissionKind, ReactNode> = {

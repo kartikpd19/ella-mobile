@@ -1,7 +1,7 @@
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef } from 'react';
 import {
@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AuthBackground, AuthColors, PrimaryButton, STATUS_BAR_HEIGHT } from '@/components/auth-screen';
 import { EllaLogo } from '@/components/ella-logo';
 import { EllaColors, EllaFonts, EllaRadius, EllaSpacing } from '@/constants/ella-tokens';
+import { startSync } from '@/lib/sync-state';
 
 const STEPS = ['Open Ella on your computer', 'Go to settings → connect phone', 'Scan the QR code shown'];
 
@@ -38,15 +39,23 @@ const Scrim = {
   outline: 'rgba(255,255,255,0.72)',
 } as const;
 
-function goBack() {
+/**
+ * The scanner opens from two places: the login screen (QR sign-in) and Home's
+ * "Sync now" (`?from=home`), which links an already signed-in device.
+ */
+type Origin = 'login' | 'home';
+
+function goBack(origin: Origin) {
   if (router.canGoBack()) {
     router.back();
   } else {
-    router.replace('/login');
+    router.replace(origin === 'home' ? '/home' : '/login');
   }
 }
 
 export default function ScanScreen() {
+  const { from } = useLocalSearchParams<{ from?: string }>();
+  const origin: Origin = from === 'home' ? 'home' : 'login';
   const [permission, requestPermission, getPermission] = useCameraPermissions();
   const askedOnce = useRef(false);
 
@@ -71,13 +80,13 @@ export default function ScanScreen() {
   }
 
   if (!permission.granted) {
-    return <PermissionNeeded canAskAgain={permission.canAskAgain} onAllow={requestPermission} />;
+    return <PermissionNeeded origin={origin} canAskAgain={permission.canAskAgain} onAllow={requestPermission} />;
   }
 
-  return <Scanner />;
+  return <Scanner origin={origin} />;
 }
 
-function Scanner() {
+function Scanner({ origin }: { origin: Origin }) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const handled = useRef(false);
@@ -88,14 +97,21 @@ function Scanner() {
   const left = (width - size) / 2;
   const top = titleTop + TITLE_HEIGHT + VIEWFINDER_GAP;
 
-  // UI-only flow: any QR code signs in. The camera fires repeatedly while a code is
+  // UI-only flow: any QR code is accepted. The camera fires repeatedly while a code is
   // in view, so only the first scan navigates.
   function handleScan(_result: BarcodeScanningResult) {
     if (handled.current) return;
     handled.current = true;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    router.dismissAll();
-    router.replace('/home');
+    if (origin === 'home') {
+      // Already signed in: return to the same Home screen (keeps the doctor's name),
+      // which shows the syncing state and then the visit list.
+      startSync();
+      goBack('home');
+    } else {
+      router.dismissAll();
+      router.replace('/home');
+    }
   }
 
   return (
@@ -139,16 +155,19 @@ function Scanner() {
           ))}
         </View>
 
-        <Pressable
-          onPress={goBack}
-          accessibilityRole="button"
-          style={({ pressed }) => [styles.outlineButton, pressed && styles.pressed]}>
-          <Text style={styles.outlineLabel}>Use institute login instead</Text>
-        </Pressable>
+        {/* Signing in another way only makes sense before sign-in. */}
+        {origin === 'login' && (
+          <Pressable
+            onPress={() => goBack(origin)}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.outlineButton, pressed && styles.pressed]}>
+            <Text style={styles.outlineLabel}>Use institute login instead</Text>
+          </Pressable>
+        )}
       </View>
 
       <Pressable
-        onPress={goBack}
+        onPress={() => goBack(origin)}
         accessibilityRole="button"
         accessibilityLabel="Close scanner"
         hitSlop={8}
@@ -159,17 +178,21 @@ function Scanner() {
   );
 }
 
-function PermissionNeeded({ canAskAgain, onAllow }: { canAskAgain: boolean; onAllow: () => void }) {
+type PermissionNeededProps = { origin: Origin; canAskAgain: boolean; onAllow: () => void };
+
+function PermissionNeeded({ origin, canAskAgain, onAllow }: PermissionNeededProps) {
   const insets = useSafeAreaInsets();
   const topInset = Math.max(insets.top, STATUS_BAR_HEIGHT);
   const isWeb = Platform.OS === 'web';
+  const code = origin === 'home' ? 'QR code' : 'sign-in QR code';
+  const backLabel = origin === 'home' ? 'Back to Home' : 'Back to login';
 
   // Browsers can't open their own site settings, so the web build retries the prompt instead.
   const message = isWeb
-    ? 'Ella needs your camera to scan the sign-in QR code. Allow camera access in your browser’s site settings, then try again.'
+    ? `Ella needs your camera to scan the ${code}. Allow camera access in your browser’s site settings, then try again.`
     : canAskAgain
-      ? 'Ella needs your camera to scan the sign-in QR code shown on your computer.'
-      : 'Ella needs your camera to scan the sign-in QR code. You can turn on camera access in Settings.';
+      ? `Ella needs your camera to scan the ${code} shown on your computer.`
+      : `Ella needs your camera to scan the ${code}. You can turn on camera access in Settings.`;
   const action = !isWeb && !canAskAgain ? 'Open Settings' : isWeb ? 'Try again' : 'Allow camera access';
   const onPress = !isWeb && !canAskAgain ? () => Linking.openSettings() : onAllow;
 
@@ -189,15 +212,15 @@ function PermissionNeeded({ canAskAgain, onAllow }: { canAskAgain: boolean; onAl
           <PrimaryButton label={action} onPress={onPress} />
         </View>
 
-        <Text style={styles.backLink} onPress={goBack} accessibilityRole="link">
-          Back to login
+        <Text style={styles.backLink} onPress={() => goBack(origin)} accessibilityRole="link">
+          {backLabel}
         </Text>
       </View>
 
       <Pressable
-        onPress={goBack}
+        onPress={() => goBack(origin)}
         accessibilityRole="button"
-        accessibilityLabel="Back to login"
+        accessibilityLabel={backLabel}
         hitSlop={8}
         style={({ pressed }) => [styles.close, { top: topInset + 4 }, pressed && styles.pressed]}>
         <Image source={require('@/assets/images/otp/arrow-left.svg')} style={styles.icon} />
