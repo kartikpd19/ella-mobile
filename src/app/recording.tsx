@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AuthBackground, AuthColors, PrimaryButton, STATUS_BAR_HEIGHT } from '@/components/auth-screen';
 import { EllaLogo } from '@/components/ella-logo';
 import { EllaColors, EllaFonts, EllaSpacing } from '@/constants/ella-tokens';
+import { describeConsent, useConsent } from '@/lib/consent-log';
 
 function goBack() {
   if (router.canGoBack()) {
@@ -18,6 +19,8 @@ function goBack() {
 /** Placeholder for "Start recording" on Visit Detail until recording is built. */
 export default function RecordingScreen() {
   const insets = useSafeAreaInsets();
+  const { id } = useLocalSearchParams<{ id?: string }>();
+  const consent = useConsent(id);
 
   return (
     <View style={[styles.screen, { paddingTop: Math.max(insets.top, STATUS_BAR_HEIGHT) + 48 }]}>
@@ -31,6 +34,7 @@ export default function RecordingScreen() {
             Coming soon
           </Text>
           <Text style={styles.subtitle}>Recording consultations isn’t available yet.</Text>
+          {consent && <Text style={styles.consent}>{describeConsent(consent)}</Text>}
         </View>
 
         <View style={styles.buttonWrap}>
@@ -69,6 +73,14 @@ const styles = StyleSheet.create({
     fontFamily: EllaFonts.displayRoman,
     fontSize: 16,
     color: AuthColors.subtitle,
+    textAlign: 'center',
+  },
+  consent: {
+    marginTop: EllaSpacing.xs,
+    fontFamily: EllaFonts.interRegular,
+    fontSize: 12,
+    lineHeight: 16,
+    color: EllaColors.semanticSuccess,
     textAlign: 'center',
   },
   buttonWrap: {

@@ -51,7 +51,18 @@
         {
           "calendarPermission": "Ella uses your calendar to show your upcoming patient visits."
         }
-      ]
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Ella uses the microphone to record your patient visits.",
+          "speechRecognitionPermission": "Ella listens for the patient's spoken consent before it starts recording.",
+          "androidSpeechServicePackages": [
+            "com.google.android.googlequicksearchbox"
+          ]
+        }
+      ],
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true,

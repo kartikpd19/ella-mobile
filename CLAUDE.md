@@ -19,7 +19,7 @@ Before declaring work done, run `npx tsc --noEmit` and `npx expo lint`.
 | `/welcome` | Permissions | Mic (required), notifications, calendar. Simulated prompts on web |
 | `/home` | Home | Draggable bottom sheet; three states (see below). Tapping a visit opens Visit Detail |
 | `/visit/[id]` | Visit Detail (`VisitDetailScreen`) | Figma `104:5304`. Header from the tapped visit (initials, name, age, patient ID, status badge); Summary / Transcript / Notes tabs with empty states; pinned "Ready to record?" card |
-| `/recording` | Placeholder | "Coming soon" target of Start recording |
+| `/recording` | Placeholder | "Coming soon", reached only after consent; shows the logged consent |
 | `/privacy` | Placeholder | |
 
 Login → OTP → Welcome → Home. QR sign-in from Login goes straight to Home.
@@ -41,6 +41,18 @@ The doctor's name comes from the email (`john.smith@mayo.edu` → "Dr. John Smit
 - Start recording checks the microphone first (`src/lib/permissions.ts`) and asks if it isn't granted; denying shows a message with Open settings (Try again on web).
 - On web, permission prompts are simulated by `useSimulatedPermissionPrompt` (`src/components/simulated-permission-prompt.tsx`). Answers are remembered for the session in `permissions.web.ts`, so a mic granted on Welcome is still granted on Visit Detail.
 - URL overrides for previews: `?state=empty|syncing|list` and `?sheet=expanded`.
+
+## Recording consent (`ConsentSheet`)
+
+**Recording never starts without consent.** Start recording (Visit Detail) → microphone check → `ConsentSheet` (`src/components/consent-sheet.tsx`, Figma `164:4784`). The only path to `/recording` is `handleConsent` in `src/app/visit/[id].tsx`, which first calls `logConsent(visitId, 'spoken' | 'manual')`.
+
+- The doctor reads `CONSENT_SCRIPT` (copied exactly from Figma) to the patient by name.
+- Spoken answers: `expo-speech-recognition` (pinned `~57.1.x` for SDK 57; Expo's installer doesn't know it and would pick a newer major). `src/lib/consent-listener.ts` loads it lazily because it isn't in Expo Go — there the sheet says listening isn't available and offers manual confirm. Needs a development build to actually listen.
+- `src/lib/consent-intent.ts` classifies yes/no (refusals checked first). Yes → "Consent received" → recording. No → "Consent not given" + Close, no recording. No answer for 20 s → "read the script again" hint.
+- Manual: "Didn't catch it? Confirm yes manually" → "Did the patient verbally agree to recording?" → only "Yes, they agreed" proceeds.
+- Privacy: consent audio is never saved (`recordingOptions.persist: false`) and transcripts are only held long enough to classify. `src/lib/consent-log.ts` keeps just method + time (in memory until there's a backend).
+- The Figma frame labels this state "0:06 Recording…"; deliberately shown as "Listening for consent…" because nothing is recorded yet.
+- Web preview: `consent-listener.web.ts` doesn't listen; the sheet shows "Patient said yes / no" buttons instead.
 
 ## Design system
 

@@ -7,11 +7,13 @@ import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HOME_INDICATOR_HEIGHT, PrimaryButton, STATUS_BAR_HEIGHT } from '@/components/auth-screen';
+import { ConsentSheet } from '@/components/consent-sheet';
 import { useSimulatedPermissionPrompt } from '@/components/simulated-permission-prompt';
 import { UnderlineTabs } from '@/components/underline-tabs';
 import { StatusBadge } from '@/components/visit-row';
 import { EllaColors, EllaFonts, EllaSpacing } from '@/constants/ella-tokens';
 import { getPermission, IS_SIMULATED, requestPermission } from '@/lib/permissions';
+import { describeConsent, logConsent, useConsent, type ConsentMethod } from '@/lib/consent-log';
 import { getVisit, initials } from '@/lib/sample-visits';
 
 const TABS = ['Summary', 'Transcript', 'Notes'] as const;
@@ -57,6 +59,16 @@ export default function VisitDetailScreen() {
   const [tab, setTab] = useState<Tab>('Summary');
   const [micBlocked, setMicBlocked] = useState(false);
   const simulated = useSimulatedPermissionPrompt();
+  const [consentOpen, setConsentOpen] = useState(false);
+  const consent = useConsent(id);
+
+  // Only path to recording: consent was spoken or manually confirmed, and is logged on the visit.
+  function handleConsent(method: ConsentMethod) {
+    if (!visit) return;
+    logConsent(visit.id, method);
+    setConsentOpen(false);
+    router.push({ pathname: '/recording', params: { id: visit.id } });
+  }
 
   const topInset = Math.max(insets.top, STATUS_BAR_HEIGHT);
   const bottomInset = Math.max(insets.bottom, HOME_INDICATOR_HEIGHT);
@@ -74,7 +86,8 @@ export default function VisitDetailScreen() {
 
     if (mic === 'granted') {
       setMicBlocked(false);
-      router.push({ pathname: '/recording', params: { id } });
+      // Recording never starts here: the patient must consent first.
+      setConsentOpen(true);
     } else {
       setMicBlocked(true);
     }
@@ -152,6 +165,7 @@ export default function VisitDetailScreen() {
           <View style={[styles.card, { bottom: bottomInset + CARD_BOTTOM_GAP }]}>
             <Text style={styles.cardTitle}>Ready to record?</Text>
             <Text style={styles.cardText}>Start recording to capture this consultation.</Text>
+            {consent && <Text style={styles.consentNote}>{describeConsent(consent)}</Text>}
             <PrimaryButton label="Start recording" onPress={startRecording} style={styles.recordButton} />
             {micBlocked && (
               <View style={styles.micBlocked}>
@@ -172,6 +186,14 @@ export default function VisitDetailScreen() {
             Back to Home
           </Text>
         </View>
+      )}
+
+      {visit && consentOpen && (
+        <ConsentSheet
+          patientName={visit.patient}
+          onConsent={handleConsent}
+          onClose={() => setConsentOpen(false)}
+        />
       )}
 
       {IS_SIMULATED && simulated.prompt}
@@ -320,6 +342,14 @@ const styles = StyleSheet.create({
   recordButton: {
     alignSelf: 'stretch',
     height: 70,
+  },
+  // design.md `caption` in `semantic-success`: the consent logged on this visit.
+  consentNote: {
+    fontFamily: EllaFonts.interRegular,
+    fontSize: 12,
+    lineHeight: 16,
+    color: EllaColors.semanticSuccess,
+    textAlign: 'center',
   },
   micBlocked: {
     alignItems: 'center',
