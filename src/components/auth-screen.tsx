@@ -1,5 +1,5 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native';
 
 import { EllaColors, EllaFonts } from '@/constants/ella-tokens';
 
@@ -42,10 +42,12 @@ type PrimaryButtonProps = {
   onPress: () => void;
   disabled?: boolean;
   loading?: boolean;
+  /** Overrides for the pill, e.g. a taller button. */
+  style?: StyleProp<ViewStyle>;
 };
 
 /** Full-width pill button. Grey while disabled, `button` token when active. */
-export function PrimaryButton({ label, onPress, disabled = false, loading = false }: PrimaryButtonProps) {
+export function PrimaryButton({ label, onPress, disabled = false, loading = false, style }: PrimaryButtonProps) {
   const active = !disabled || loading;
 
   return (
@@ -55,7 +57,7 @@ export function PrimaryButton({ label, onPress, disabled = false, loading = fals
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ disabled: disabled || loading, busy: loading }}
-      style={({ pressed }) => [styles.button, active && styles.buttonActive, pressed && styles.pressed]}>
+      style={({ pressed }) => [styles.button, active && styles.buttonActive, style, pressed && styles.pressed]}>
       {loading ? (
         <ActivityIndicator color={EllaColors.canvas} style={styles.spinner} />
       ) : (

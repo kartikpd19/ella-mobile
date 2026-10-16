@@ -17,7 +17,9 @@ Before declaring work done, run `npx tsc --noEmit` and `npx expo lint`.
 | `/verify` | OTP | Test code **123456**; `?email=` shows the address |
 | `/scan` | QR scanner | `expo-camera`; any QR is accepted. `?from=home` = re-sync from Home (returns to Home, hides "Use institute login instead") |
 | `/welcome` | Permissions | Mic (required), notifications, calendar. Simulated prompts on web |
-| `/home` | Home | Draggable bottom sheet; three states (see below) |
+| `/home` | Home | Draggable bottom sheet; three states (see below). Tapping a visit opens Visit Detail |
+| `/visit/[id]` | Visit Detail (`VisitDetailScreen`) | Figma `104:5304`. Header from the tapped visit (initials, name, age, patient ID, status badge); Summary / Transcript / Notes tabs with empty states; pinned "Ready to record?" card |
+| `/recording` | Placeholder | "Coming soon" target of Start recording |
 | `/privacy` | Placeholder | |
 
 Login → OTP → Welcome → Home. QR sign-in from Login goes straight to Home.
@@ -27,9 +29,17 @@ The doctor's name comes from the email (`john.smith@mayo.edu` → "Dr. John Smit
 ## Home bottom sheet
 
 - Built with `@gorhom/bottom-sheet` + `react-native-reanimated`; the root layout wraps the app in `GestureHandlerRootView`.
-- Two snap points: **collapsed** (top of sheet just below the greeting) and **expanded** (just below the top bar, so logo, bell and profile stay visible). They are computed from window size plus measured header layout, with first-frame estimates so the sheet never waits on `onLayout`.
+- Two snap points: **collapsed** (top of sheet just below the greeting) and **expanded** (just below the top bar, so logo, bell and profile stay visible). They are computed from the window height and the header's fixed geometry (constants in `home.tsx`; the greeting is capped at two lines), so they are right on the first frame and never shift. If you change the header layout, update those constants.
+- Testing tip: headless Chrome with `--virtual-time-budget` misplaces the sheet (layout events are delayed). Test in a real-time browser instead.
 - Tabs and Search are pinned above the scrolling content. Scrolling up while collapsed expands the sheet first; pulling down at the top of the list collapses it. The greeting fades to 30% as the sheet covers it.
 - States come from `src/lib/sync-state.ts`: `empty` (Sync now) → `syncing` (after a scan, ~1.5 s) → `synced` (sample visits from `src/lib/sample-visits.ts`, rows in `src/components/visit-row.tsx`).
+
+## Visit Detail and permissions
+
+- Visits are looked up by id with `getVisit(id)`; each sample visit has `age` and `patientId`. The header badge is the note status (`StatusBadge`), falling back to the appointment status when there's no note.
+- Tabs on Home and Visit Detail share `src/components/underline-tabs.tsx`.
+- Start recording checks the microphone first (`src/lib/permissions.ts`) and asks if it isn't granted; denying shows a message with Open settings (Try again on web).
+- On web, permission prompts are simulated by `useSimulatedPermissionPrompt` (`src/components/simulated-permission-prompt.tsx`). Answers are remembered for the session in `permissions.web.ts`, so a mic granted on Welcome is still granted on Visit Detail.
 - URL overrides for previews: `?state=empty|syncing|list` and `?sheet=expanded`.
 
 ## Design system
@@ -41,7 +51,7 @@ The doctor's name comes from the email (`john.smith@mayo.edu` → "Dr. John Smit
 
 ## Device preview
 
-With `npx expo start` running, open `http://localhost:8081/preview.html` (`public/preview.html`): phone/tablet frames with the Figma status bar and home indicator, a **Screen** picker, and links like `?screen=home%3Fstate%3Dlist#mobile`. Files in `public/` ship with web exports.
+With `npx expo start` running, open `http://localhost:8081/preview.html` (`public/preview.html`): phone/tablet frames with the Figma status bar and home indicator, a **Screen** picker (Home adds a **Variant** dropdown: Not synced, Syncing, Visit list, Sheet expanded), and deep links like `?screen=home&state=list&sheet=expanded#both` (the older `?screen=home%3Fstate%3Dlist` form still works). Files in `public/` ship with web exports.
 
 ## Git
 

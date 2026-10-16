@@ -1,8 +1,12 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Image } from 'expo-image';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AuthColors } from '@/components/auth-screen';
 import { EllaColors, EllaFonts, EllaSpacing } from '@/constants/ella-tokens';
 import type { NoteStatus, Visit, VisitStatus } from '@/lib/sample-visits';
+
+// The Figma Recording Status component's icon; only the Draft one exists in the file so far.
+const DRAFT_ICON = require('@/assets/images/visit/status-draft.png');
 
 // design.md › Status ring — `status-color ring` bar colors.
 const RING_COLORS: Record<VisitStatus, string> = {
@@ -24,18 +28,46 @@ const BADGES: Record<NoteStatus, { background: string; text: string; border?: st
   Canceled: { background: 'rgba(212,213,218,0.55)', text: 'rgba(58,64,80,0.62)', border: 'rgba(0,0,0,0.4)', label: 'Canceled' },
 };
 
-export function VisitRow({ visit }: { visit: Visit }) {
-  const ring = RING_COLORS[visit.status];
-  const badge = visit.note ? BADGES[visit.note] : undefined;
+type BadgeStyle = { background: string; text: string; border?: string; label: string };
+
+/**
+ * The visit's `Recording Status` badge. With `fallbackToAppointment`, visits that have no
+ * note yet show their appointment status instead (tinted with its status color).
+ */
+export function StatusBadge({ visit, fallbackToAppointment = false }: { visit: Visit; fallbackToAppointment?: boolean }) {
+  let badge: BadgeStyle | undefined = visit.note ? BADGES[visit.note] : undefined;
+  if (!badge && fallbackToAppointment) {
+    const color = RING_COLORS[visit.status];
+    badge = { background: `${color}1F`, text: color, label: visit.status }; // 1F ≈ 12% alpha
+  }
+  if (!badge) return null;
 
   return (
     <View
-      style={styles.row}
-      accessible
-      accessibilityLabel={`${visit.patient}, ${visit.time}, ${visit.reason}. ${visit.status}${badge ? `. Note ${badge.label}` : ''}`}>
-      <View style={[styles.ring, { borderColor: ring }]}>
-        <View style={[styles.ringBar, { backgroundColor: ring }]} />
-      </View>
+      style={[
+        styles.badge,
+        { backgroundColor: badge.background },
+        badge.border ? { borderWidth: 1, borderStyle: 'dashed', borderColor: badge.border } : null,
+      ]}>
+      {visit.note === 'Draft' && <Image source={DRAFT_ICON} style={styles.badgeIcon} />}
+      <Text style={[styles.badgeLabel, { color: badge.text }]}>{badge.label}</Text>
+    </View>
+  );
+}
+
+export function VisitRow({ visit, onPress }: { visit: Visit; onPress?: () => void }) {
+  const ring = RING_COLORS[visit.status];
+  const note = visit.note ? BADGES[visit.note].label : undefined;
+
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={!onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${visit.patient}, ${visit.time}, ${visit.reason}. ${visit.status}${note ? `. Note ${note}` : ''}`}
+      accessibilityHint="Opens the visit detail"
+      style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
+      <View style={[styles.statusBar, { backgroundColor: ring }]} />
 
       <View style={styles.text}>
         <Text style={styles.patient} numberOfLines={1}>
@@ -46,17 +78,8 @@ export function VisitRow({ visit }: { visit: Visit }) {
         </Text>
       </View>
 
-      {badge && (
-        <View
-          style={[
-            styles.badge,
-            { backgroundColor: badge.background },
-            badge.border ? { borderWidth: 1, borderStyle: 'dashed', borderColor: badge.border } : null,
-          ]}>
-          <Text style={[styles.badgeLabel, { color: badge.text }]}>{badge.label}</Text>
-        </View>
-      )}
-    </View>
+      <StatusBadge visit={visit} />
+    </Pressable>
   );
 }
 
@@ -69,18 +92,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: AuthColors.hairline,
   },
-  // design.md: 30×30 ring with a 4×15 bar, radius 35.
-  ring: {
-    width: 30,
-    height: 30,
-    borderRadius: 35,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  ringBar: {
+  // design.md status bar (4×15), drawn without the ring, as in the Figma visit list.
+  statusBar: {
     width: 4,
     height: 15,
+    marginRight: EllaSpacing.xxs,
     borderRadius: 2,
   },
   text: {
@@ -101,11 +117,21 @@ const styles = StyleSheet.create({
     color: EllaColors.contentMuted,
   },
   // design.md: height 24, padding 4 × 8, radius 16.
+  pressed: {
+    opacity: 0.6,
+  },
+  // design.md: height 24, padding 4 × 8, radius 16, gap 4.
   badge: {
     height: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: EllaSpacing.xxs,
     paddingHorizontal: EllaSpacing.xs,
     borderRadius: 16,
-    justifyContent: 'center',
+  },
+  badgeIcon: {
+    width: 14,
+    height: 14,
   },
   badgeLabel: {
     fontFamily: EllaFonts.interMedium,

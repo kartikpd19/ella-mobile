@@ -134,6 +134,7 @@
     padding: 5px 8px;
     cursor: pointer;
   }
+  .screen-pick[hidden] { display: none; }
   .screen-pick select:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
@@ -255,7 +256,7 @@
 <body>
   <header>
     <div class="title">Ella<span>device preview</span></div>
-    <div class="seg" role="radiogroup" aria-label="Device">
+    <div class="seg" id="device-seg" role="radiogroup" aria-label="Device">
       <button role="radio" data-mode="mobile">Mobile</button>
       <button role="radio" data-mode="tablet">Tablet</button>
       <button role="radio" data-mode="both">Both</button>
@@ -267,11 +268,16 @@
         <option value="/verify?email=john.smith@mayo.edu">Enter code (OTP)</option>
         <option value="/scan">QR scanner</option>
         <option value="/welcome?email=john.smith@mayo.edu">Welcome / permissions</option>
-        <option value="/home?state=empty&amp;email=john.smith@mayo.edu">Home: not synced</option>
-        <option value="/home?state=syncing&amp;email=john.smith@mayo.edu">Home: syncing</option>
-        <option value="/home?state=list&amp;email=john.smith@mayo.edu">Home: visit list</option>
-        <option value="/home?state=list&amp;sheet=expanded&amp;email=john.smith@mayo.edu">Home: visit list (sheet expanded)</option>
+        <option value="home">Home</option>
         <option value="/privacy">Privacy Policy</option>
+      </select>
+    </label>
+    <label class="screen-pick" id="variant-pick" hidden>Variant
+      <select id="variant">
+        <option value="empty">Not synced</option>
+        <option value="syncing">Syncing</option>
+        <option value="list">Visit list</option>
+        <option value="expanded">Sheet expanded</option>
       </select>
     </label>
     <div class="spacer"></div>
@@ -314,7 +320,7 @@
     tablet: document.getElementById('tablet-wrap'),
   };
   const sizes = { mobile: [417, 876], tablet: [856, 1216] };
-  const buttons = [...document.querySelectorAll('.seg button')];
+  const buttons = [...document.querySelectorAll('#device-seg button')];
   const modes = ['mobile', 'tablet', 'both'];
   const GAP = 48;
   const LABEL = 28;
@@ -374,29 +380,120 @@
   });
 
   // Screen picker: jump straight to any screen instead of clicking through the flow.
+  // Home has variants (the app's ?state= / ?sheet= values), picked with the Variant dropdown.
   const frames = [...document.querySelectorAll('iframe')];
   const screenSelect = document.getElementById('screen');
   const openApp = document.getElementById('open-app');
+  const variantPick = document.getElementById('variant-pick');
+  const variantSelect = document.getElementById('variant');
 
-  function showScreen(path) {
+  const HOME = 'home';
+  const TEST_EMAIL = 'john.smith@mayo.edu';
+  const VARIANTS = {
+    empty: { state: 'empty' },
+    syncing: { state: 'syncing' },
+    list: { state: 'list' },
+    expanded: { state: 'list', sheet: 'expanded' },
+  };
+  const variantIds = Object.keys(VARIANTS);
+  const DEFAULT_VARIANT = 'list';
+
+  let screen = screenSelect.value;
+  let variant = DEFAULT_VARIANT;
+
+  // URL key for a screen: "/verify?email=…" → "verify", "/" → "start", Home → "home".
+  function keyOf(value) {
+    if (value === HOME) return HOME;
+    return value.split('?')[0].slice(1) || 'start';
+  }
+
+  // Same paths the old per-variant Home options used, so the app sees identical URLs.
+  function homePath(id) {
+    const { state, sheet } = VARIANTS[id];
+    return `/home?state=${state}${sheet ? `&sheet=${sheet}` : ''}&email=${TEST_EMAIL}`;
+  }
+
+  function variantFrom(state, sheet) {
+    if (sheet === 'expanded') return 'expanded';
+    return variantIds.includes(state) ? state : DEFAULT_VARIANT;
+  }
+
+  // Accepts the current form (?screen=home&state=list&sheet=expanded), the old nested form
+  // (?screen=home%3Fstate%3Dlist%26sheet%3Dexpanded) and bare keys like ?screen=verify.
+  function resolve(raw, state, sheet) {
+    if (!raw) return null;
+    let key = raw;
+    if (raw.includes('?')) {
+      const [k, rest] = raw.split('?');
+      const inner = new URLSearchParams(rest);
+      key = k;
+      state = state || inner.get('state');
+      sheet = sheet || inner.get('sheet');
+    }
+    key = key.replace(/^\//, '');
+    if (key === HOME) return { screen: HOME, variant: variantFrom(state, sheet) };
+    const option =
+      [...screenSelect.options].find(o => keyOf(o.value) === (key || 'start')) ||
+      [...screenSelect.options].find(o => o.value.startsWith('/' + key));
+    return option ? { screen: option.value, variant } : null;
+  }
+
+  function render() {
+    const isHome = screen === HOME;
+    const path = isHome ? homePath(variant) : screen;
+
+    screenSelect.value = screen;
+    variantPick.hidden = !isHome;
+    variantSelect.value = variant;
+
     frames.forEach(f => { f.src = path; });
     openApp.href = path;
-    try { localStorage.setItem('ella-preview-screen', path); } catch {}
-  }
 
-  // ?screen=home in the link wins; otherwise reuse the last screen picked.
-  const linkedScreen = new URLSearchParams(location.search).get('screen');
-  const linkedOption = linkedScreen && [...screenSelect.options].find(o => o.value.startsWith('/' + linkedScreen));
-  if (linkedOption) {
-    screenSelect.value = linkedOption.value;
-  } else {
+    const query = new URLSearchParams({ screen: keyOf(screen) });
+    if (isHome) {
+      const { state, sheet } = VARIANTS[variant];
+      query.set('state', state);
+      if (sheet) query.set('sheet', sheet);
+    }
+    history.replaceState(null, '', `?${query}${location.hash}`);
+
     try {
-      const savedScreen = localStorage.getItem('ella-preview-screen');
-      if ([...screenSelect.options].some(o => o.value === savedScreen)) screenSelect.value = savedScreen;
+      localStorage.setItem('ella-preview-screen', screen);
+      localStorage.setItem('ella-preview-variant', variant);
     } catch {}
   }
-  showScreen(screenSelect.value);
-  screenSelect.addEventListener('change', () => showScreen(screenSelect.value));
+
+  // A link wins; otherwise reuse the last screen and variant picked.
+  const params = new URLSearchParams(location.search);
+  let initial = resolve(params.get('screen'), params.get('state'), params.get('sheet'));
+  if (!initial) {
+    try {
+      const saved = localStorage.getItem('ella-preview-screen');
+      const savedVariant = localStorage.getItem('ella-preview-variant');
+      if (saved === HOME) {
+        initial = { screen: HOME, variant: variantIds.includes(savedVariant) ? savedVariant : DEFAULT_VARIANT };
+      } else if (saved && saved.startsWith('/home')) {
+        // Older saves stored full Home paths like "/home?state=list&…".
+        const q = new URLSearchParams(saved.split('?')[1]);
+        initial = { screen: HOME, variant: variantFrom(q.get('state'), q.get('sheet')) };
+      } else if ([...screenSelect.options].some(o => o.value === saved)) {
+        initial = { screen: saved, variant: DEFAULT_VARIANT };
+      }
+    } catch {}
+  }
+  if (initial) ({ screen, variant } = initial);
+  render();
+
+  screenSelect.addEventListener('change', () => {
+    screen = screenSelect.value;
+    if (screen === HOME) variant = DEFAULT_VARIANT;
+    render();
+  });
+
+  variantSelect.addEventListener('change', () => {
+    variant = variantSelect.value;
+    render();
+  });
 
   // Reloads whatever screen each frame is on now, even after navigating inside the app.
   document.getElementById('reload').addEventListener('click', () => {

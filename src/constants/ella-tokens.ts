@@ -65,6 +65,8 @@ export const EllaFonts = {
   apercuBold: 'Inter_700Bold', // Apercu Bold
   interRegular: 'Inter_400Regular',
   interMedium: 'Inter_500Medium',
+  interSemiBold: 'Inter_600SemiBold',
   interBold: 'Inter_700Bold',
+  monoRegular: 'RobotoMono_400Regular', // Roboto Mono Regular (patient age and ID)
   monoMedium: 'RobotoMono_500Medium', // Roboto Mono Medium (OTP digits)
 } as const;

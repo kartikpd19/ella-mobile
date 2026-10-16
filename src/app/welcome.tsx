@@ -1,11 +1,12 @@
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
-import { AppState, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Fragment, useEffect, useState, type ReactNode } from 'react';
+import { AppState, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AuthColors, HOME_INDICATOR_HEIGHT, PrimaryButton, STATUS_BAR_HEIGHT } from '@/components/auth-screen';
+import { useSimulatedPermissionPrompt } from '@/components/simulated-permission-prompt';
 import { EllaColors, EllaFonts, EllaSpacing } from '@/constants/ella-tokens';
 import { doctorNameFromEmail } from '@/lib/doctor-name';
 import {
@@ -21,33 +22,16 @@ type Row = {
   title: string;
   optional?: boolean;
   icon: number;
-  // Shown in the simulated web prompt; mirrors the native permission strings.
-  promptTitle: string;
-  promptBody: string;
 };
 
 const ROWS: Row[] = [
-  {
-    kind: 'microphone',
-    title: 'Allow microphone access',
-    icon: require('@/assets/images/welcome/mic.svg'),
-    promptTitle: '“Ella” Would Like to Access the Microphone',
-    promptBody: 'Ella uses the microphone to record your patient visits.',
-  },
-  {
-    kind: 'notifications',
-    title: 'Allow notifications',
-    icon: require('@/assets/images/welcome/bell.svg'),
-    promptTitle: '“Ella” Would Like to Send You Notifications',
-    promptBody: 'Notifications may include alerts, sounds, and icon badges.',
-  },
+  { kind: 'microphone', title: 'Allow microphone access', icon: require('@/assets/images/welcome/mic.svg') },
+  { kind: 'notifications', title: 'Allow notifications', icon: require('@/assets/images/welcome/bell.svg') },
   {
     kind: 'calendar',
     title: 'Connect your calendar',
     optional: true,
     icon: require('@/assets/images/welcome/calendar.svg'),
-    promptTitle: '“Ella” Would Like to Access Your Calendar',
-    promptBody: 'Ella uses your calendar to show your upcoming patient visits.',
   },
 ];
 
@@ -71,17 +55,15 @@ export default function WelcomeScreen() {
   const doctorName = doctorNameFromEmail(email);
 
   const [states, setStates] = useState<States>(INITIAL);
-  const [prompt, setPrompt] = useState<Row | null>(null);
-  const promptResolve = useRef<((granted: boolean) => void) | undefined>(undefined);
+  const simulated = useSimulatedPermissionPrompt();
 
   function setState(kind: PermissionKind, state: PermissionState) {
     setStates((s) => ({ ...s, [kind]: state }));
   }
 
   // Read current permissions, and again when returning from the Settings app.
+  // (On web this reads earlier answers to the simulated prompts.)
   useEffect(() => {
-    if (IS_SIMULATED) return;
-
     async function refresh() {
       for (const { kind } of ROWS) {
         try {
@@ -99,24 +81,11 @@ export default function WelcomeScreen() {
     return () => sub.remove();
   }, []);
 
-  function askSimulated(row: Row) {
-    return new Promise<boolean>((resolve) => {
-      promptResolve.current = resolve;
-      setPrompt(row);
-    });
-  }
-
-  function answerSimulated(granted: boolean) {
-    setPrompt(null);
-    promptResolve.current?.(granted);
-    promptResolve.current = undefined;
-  }
-
   async function ask(row: Row) {
     if (states[row.kind] === 'granted') return;
 
     if (IS_SIMULATED) {
-      setState(row.kind, (await askSimulated(row)) ? 'granted' : 'denied');
+      setState(row.kind, (await simulated.ask(row.kind)) ? 'granted' : 'denied');
       return;
     }
 
@@ -197,34 +166,7 @@ export default function WelcomeScreen() {
         />
       </ScrollView>
 
-      {IS_SIMULATED && (
-        <Modal visible={prompt !== null} transparent animationType="fade" onRequestClose={() => answerSimulated(false)}>
-          <View style={styles.backdrop}>
-            <View style={styles.alert} accessibilityRole="alert">
-              <View style={styles.alertBody}>
-                <Text style={styles.alertTag}>Simulated system prompt</Text>
-                <Text style={styles.alertTitle}>{prompt?.promptTitle}</Text>
-                <Text style={styles.alertMessage}>{prompt?.promptBody}</Text>
-              </View>
-              <View style={styles.alertButtons}>
-                <Pressable
-                  onPress={() => answerSimulated(false)}
-                  accessibilityRole="button"
-                  style={({ pressed }) => [styles.alertButton, pressed && styles.alertPressed]}>
-                  <Text style={styles.alertButtonText}>Don’t Allow</Text>
-                </Pressable>
-                <View style={styles.alertDivider} />
-                <Pressable
-                  onPress={() => answerSimulated(true)}
-                  accessibilityRole="button"
-                  style={({ pressed }) => [styles.alertButton, pressed && styles.alertPressed]}>
-                  <Text style={[styles.alertButtonText, styles.alertButtonPrimary]}>Allow</Text>
-                </Pressable>
-              </View>
-            </View>
-          </View>
-        </Modal>
-      )}
+      {IS_SIMULATED && simulated.prompt}
     </View>
   );
 }
@@ -366,72 +308,5 @@ const styles = StyleSheet.create({
   spacer: {
     flex: 1,
     minHeight: EllaSpacing.section,
-  },
-  // Simulated iOS permission alert (web preview only).
-  backdrop: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.4)',
-  },
-  alert: {
-    width: 270,
-    borderRadius: 14,
-    backgroundColor: 'rgba(242,242,247,0.98)',
-    overflow: 'hidden',
-  },
-  alertBody: {
-    paddingHorizontal: EllaSpacing.md,
-    paddingTop: EllaSpacing.lg,
-    paddingBottom: EllaSpacing.md,
-    gap: EllaSpacing.xxs,
-  },
-  alertTag: {
-    fontFamily: EllaFonts.interMedium,
-    fontSize: 11,
-    color: EllaColors.contentMuted,
-    textAlign: 'center',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  alertTitle: {
-    fontFamily: EllaFonts.interBold,
-    fontSize: 17,
-    lineHeight: 22,
-    color: EllaColors.contentInk,
-    textAlign: 'center',
-  },
-  alertMessage: {
-    fontFamily: EllaFonts.interRegular,
-    fontSize: 13,
-    lineHeight: 18,
-    color: EllaColors.contentInk,
-    textAlign: 'center',
-  },
-  alertButtons: {
-    flexDirection: 'row',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(60,60,67,0.29)',
-  },
-  alertButton: {
-    flex: 1,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  alertPressed: {
-    backgroundColor: 'rgba(0,0,0,0.06)',
-  },
-  alertDivider: {
-    width: StyleSheet.hairlineWidth,
-    backgroundColor: 'rgba(60,60,67,0.29)',
-  },
-  alertButtonText: {
-    fontFamily: EllaFonts.interRegular,
-    fontSize: 17,
-    color: '#007AFF',
-  },
-  alertButtonPrimary: {
-    fontFamily: EllaFonts.interBold,
   },
 });

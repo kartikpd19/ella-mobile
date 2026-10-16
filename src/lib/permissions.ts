@@ -10,6 +10,9 @@ export type PermissionState = 'undetermined' | 'granted' | 'denied';
 /** On native the OS shows the real prompts; only the web preview simulates them. */
 export const IS_SIMULATED = false;
 
+/** Web-only (see permissions.web.ts); the OS keeps track on native. */
+export function rememberSimulated(_kind: PermissionKind, _state: PermissionState) {}
+
 type Response = { granted: boolean; status: string };
 
 function toState({ granted, status }: Response): PermissionState {

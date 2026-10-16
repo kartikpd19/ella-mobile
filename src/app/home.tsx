@@ -15,13 +15,13 @@ import {
   Text,
   useWindowDimensions,
   View,
-  type LayoutChangeEvent,
 } from 'react-native';
 import Animated, { Extrapolation, interpolate, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AuthColors, PrimaryButton, STATUS_BAR_HEIGHT } from '@/components/auth-screen';
 import { EllaLogo } from '@/components/ella-logo';
+import { UnderlineTabs } from '@/components/underline-tabs';
 import { VisitRow } from '@/components/visit-row';
 import { EllaColors, EllaFonts, EllaRadius, EllaSpacing } from '@/constants/ella-tokens';
 import { doctorNameFromEmail } from '@/lib/doctor-name';
@@ -42,9 +42,12 @@ const SEARCH_FILL = '#F3F4F6';
 const GRID_LINE = 'rgba(168,172,179,0.14)'; // Content-soft, very faint
 const EXPANDED_GAP = EllaSpacing.sm; // space between the top bar and the expanded sheet
 const GREETING_MIN_OPACITY = 0.3; // "fades out slightly" once covered
-// First-frame estimates (refined by onLayout): logo row 40.8 + 2×8 padding; date + 2-line title + spacing.
-const TOP_BAR_ESTIMATE = 56.8;
-const GREETING_ESTIMATE = 24 + 16 + 8 + 64 + 48;
+// Fixed header geometry, so snap points are known on the first frame and never shift
+// (shifting snap points made the sheet start in the wrong place on web).
+const TOP_BAR_HEIGHT = 40.8 + 2 * EllaSpacing.xs; // EllaLogo: 40.8 mark + 8 padding top and bottom
+const TITLE_LINE_HEIGHT = 32;
+const GREETING_HEIGHT =
+  EllaSpacing.xl + 16 + EllaSpacing.xs + 2 * TITLE_LINE_HEIGHT + 48; // date margin + date + gap + 2 title lines + header padding
 
 const SHEET_STATES: SyncState[] = ['empty', 'syncing', 'synced'];
 
@@ -63,13 +66,11 @@ export default function HomeScreen() {
 
   const [tab, setTab] = useState<Tab>('All');
 
-  // Snap points depend on where the top bar and greeting end. Start from estimates so the
-  // sheet always renders on the first frame, then refine with measured layout.
-  const { height: windowHeight } = useWindowDimensions();
+  // Collapsed: sheet top just below the greeting. Expanded: just below the top bar.
+  const { height: screenHeight } = useWindowDimensions();
   const headerTop = Math.max(insets.top, STATUS_BAR_HEIGHT) + EllaSpacing.md;
-  const [screenHeight, setScreenHeight] = useState(windowHeight);
-  const [topBarBottom, setTopBarBottom] = useState(headerTop + TOP_BAR_ESTIMATE);
-  const [headerBottom, setHeaderBottom] = useState(headerTop + TOP_BAR_ESTIMATE + GREETING_ESTIMATE);
+  const topBarBottom = headerTop + TOP_BAR_HEIGHT;
+  const headerBottom = topBarBottom + GREETING_HEIGHT;
 
   const snapPoints = useMemo(() => {
     const collapsed = Math.max(screenHeight - headerBottom, 1);
@@ -77,14 +78,10 @@ export default function HomeScreen() {
     return [collapsed, Math.max(expanded, collapsed + 1)];
   }, [screenHeight, topBarBottom, headerBottom]);
 
-  function measured(setter: (value: number) => void) {
-    return (value: number) => {
-      if (value > 0) setter(value);
-    };
-  }
-
   // 0 = collapsed, 1 = expanded; drives the greeting fade.
-  const sheetIndex = useSharedValue(0);
+  const initialIndex = sheet === 'expanded' ? 1 : 0;
+  const sheetIndex = useSharedValue(initialIndex);
+
   const greetingStyle = useAnimatedStyle(() => ({
     opacity: interpolate(sheetIndex.value, [0, 1], [1, GREETING_MIN_OPACITY], Extrapolation.CLAMP),
     transform: [{ translateY: interpolate(sheetIndex.value, [0, 1], [0, -EllaSpacing.xs], Extrapolation.CLAMP) }],
@@ -107,9 +104,7 @@ export default function HomeScreen() {
   const bottomPadding = insets.bottom + EllaSpacing.xl;
 
   return (
-    <View
-      style={styles.screen}
-      onLayout={(e: LayoutChangeEvent) => measured(setScreenHeight)(e.nativeEvent.layout.height)}>
+    <View style={styles.screen}>
       <StatusBar style="dark" />
       <LinearGradient
         colors={HEADER_GRADIENT}
@@ -119,12 +114,8 @@ export default function HomeScreen() {
         pointerEvents="none"
       />
 
-      <View
-        style={[styles.header, { paddingTop: headerTop }]}
-        onLayout={(e) => measured(setHeaderBottom)(e.nativeEvent.layout.y + e.nativeEvent.layout.height)}>
-        <View
-          style={styles.topBar}
-          onLayout={(e) => measured(setTopBarBottom)(headerTop + e.nativeEvent.layout.height)}>
+      <View style={[styles.header, { paddingTop: headerTop }]}>
+        <View style={styles.topBar}>
           <View style={styles.logo}>
             <EllaLogo />
           </View>
@@ -147,7 +138,8 @@ export default function HomeScreen() {
 
         <Animated.View style={greetingStyle}>
           <Text style={styles.date}>{today}</Text>
-          <Text style={styles.title} accessibilityRole="header">
+          {/* Two lines max: the sheet's collapsed position assumes this height. */}
+          <Text style={styles.title} accessibilityRole="header" numberOfLines={2}>
             Welcome to Ella,{'\n'}
             {doctorName}
           </Text>
@@ -156,7 +148,7 @@ export default function HomeScreen() {
 
         <BottomSheet
           // `?sheet=expanded` (preview page) opens the sheet expanded; it starts collapsed otherwise.
-          index={sheet === 'expanded' ? 1 : 0}
+          index={initialIndex}
           snapPoints={snapPoints}
           animateOnMount={false}
           animatedIndex={sheetIndex}
@@ -168,22 +160,7 @@ export default function HomeScreen() {
           style={styles.sheetShadow}>
           {/* Tabs and Search stay pinned while the content below scrolls. */}
           <View style={styles.toolbar}>
-            <View style={styles.tabs} accessibilityRole="tablist">
-              {TABS.map((name) => {
-                const selected = name === tab;
-                return (
-                  <Pressable
-                    key={name}
-                    onPress={() => setTab(name)}
-                    accessibilityRole="tab"
-                    accessibilityState={{ selected }}
-                    style={styles.tab}>
-                    <Text style={[styles.tabLabel, selected && styles.tabLabelSelected]}>{name}</Text>
-                    <View style={[styles.tabIndicator, selected && styles.tabIndicatorSelected]} />
-                  </Pressable>
-                );
-              })}
-            </View>
+            <UnderlineTabs tabs={TABS} selected={tab} onSelect={setTab} />
 
             <Pressable
               accessibilityRole="search"
@@ -198,7 +175,12 @@ export default function HomeScreen() {
             <BottomSheetSectionList
               sections={sections}
               keyExtractor={(visit: Visit) => visit.id}
-              renderItem={({ item }: { item: Visit }) => <VisitRow visit={item} />}
+              renderItem={({ item }: { item: Visit }) => (
+                <VisitRow
+                  visit={item}
+                  onPress={() => router.push({ pathname: '/visit/[id]', params: { id: item.id } })}
+                />
+              )}
               renderSectionHeader={({ section }: { section: { title: string } }) => (
                 <Text style={styles.sectionHeader} accessibilityRole="header">
                   {section.title}
@@ -363,33 +345,6 @@ const styles = StyleSheet.create({
     paddingTop: EllaSpacing.md,
     paddingBottom: EllaSpacing.xs,
     backgroundColor: EllaColors.canvas,
-  },
-  tabs: {
-    flexDirection: 'row',
-    gap: EllaSpacing.md,
-  },
-  tab: {
-    alignItems: 'stretch',
-    gap: EllaSpacing.xs,
-  },
-  tabLabel: {
-    paddingHorizontal: EllaSpacing.xxs,
-    fontFamily: EllaFonts.interMedium,
-    fontSize: 16,
-    lineHeight: 20,
-    color: EllaColors.contentSoft,
-  },
-  tabLabelSelected: {
-    fontFamily: EllaFonts.interBold,
-    color: EllaColors.contentInk,
-  },
-  tabIndicator: {
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: 'transparent',
-  },
-  tabIndicatorSelected: {
-    backgroundColor: EllaColors.ellaBlue,
   },
   search: {
     flexDirection: 'row',
