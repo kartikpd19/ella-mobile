@@ -8,7 +8,7 @@ import { HOME_INDICATOR_HEIGHT, PrimaryButton } from '@/components/auth-screen';
 import { SoundWave } from '@/components/sound-wave';
 import { EllaColors, EllaFonts, EllaRadius, EllaSpacing } from '@/constants/ella-tokens';
 import { classifyConsent } from '@/lib/consent-intent';
-import { createConsentListener, IS_SIMULATED_LISTENER } from '@/lib/consent-listener';
+import { createConsentListener } from '@/lib/consent-listener';
 import type { ConsentMethod } from '@/lib/consent-log';
 
 /** Read aloud to the patient. Copied exactly from Figma frame 164:4784. */
@@ -144,7 +144,6 @@ export function ConsentSheet({ patientName, onConsent, onClose }: ConsentSheetPr
           showsVerticalScrollIndicator={false}>
           {/* Not "Recording": nothing is recorded until the patient consents. */}
           <View style={styles.statusRow} accessibilityLiveRegion="polite">
-            <SoundWave color={EllaColors.ellaBlue} size={17} barWidth={1.417} active={listening} />
             <Text style={styles.statusText}>
               {phase === 'received'
                 ? 'Consent received'
@@ -205,26 +204,6 @@ export function ConsentSheet({ patientName, onConsent, onClose }: ConsentSheetPr
                         ? 'No answer heard yet. Try reading the script again.'
                         : 'When they say yes, recording starts automatically.'}
                 </Text>
-              </View>
-            </View>
-          )}
-
-          {IS_SIMULATED_LISTENER && phase === 'listening' && (
-            <View style={styles.simulate}>
-              <Text style={styles.simulateTag}>Preview only: simulate the patient</Text>
-              <View style={styles.simulateRow}>
-                <Pressable
-                  onPress={() => handleTranscript("Yes, that's fine")}
-                  accessibilityRole="button"
-                  style={({ pressed }) => [styles.simulateButton, pressed && styles.pressed]}>
-                  <Text style={styles.simulateLabel}>Patient said yes</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => handleTranscript("No, I'd rather not")}
-                  accessibilityRole="button"
-                  style={({ pressed }) => [styles.simulateButton, pressed && styles.pressed]}>
-                  <Text style={styles.simulateLabel}>Patient said no</Text>
-                </Pressable>
               </View>
             </View>
           )}
@@ -386,40 +365,6 @@ const styles = StyleSheet.create({
   checkIcon: {
     width: 20,
     height: 20,
-  },
-  simulate: {
-    width: CONTENT_WIDTH,
-    maxWidth: '100%',
-    gap: EllaSpacing.xs,
-    padding: EllaSpacing.sm,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: EllaColors.contentSoft,
-    borderRadius: EllaRadius.md,
-  },
-  simulateTag: {
-    fontFamily: EllaFonts.interMedium,
-    fontSize: 11,
-    letterSpacing: 0.5,
-    color: EllaColors.contentMuted,
-    textAlign: 'center',
-    textTransform: 'uppercase',
-  },
-  simulateRow: {
-    flexDirection: 'row',
-    gap: EllaSpacing.xs,
-  },
-  simulateButton: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: EllaSpacing.xs,
-    borderRadius: EllaRadius.sm,
-    backgroundColor: EllaColors.surfaceSoft,
-  },
-  simulateLabel: {
-    fontFamily: EllaFonts.interMedium,
-    fontSize: 14,
-    color: EllaColors.contentBody,
   },
   linkWrap: {
     paddingHorizontal: EllaSpacing.xl,

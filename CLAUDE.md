@@ -52,7 +52,7 @@ The doctor's name comes from the email (`john.smith@mayo.edu` → "Dr. John Smit
 - Manual: "Didn't catch it? Confirm yes manually" → "Did the patient verbally agree to recording?" → only "Yes, they agreed" proceeds.
 - Privacy: consent audio is never saved (`recordingOptions.persist: false`) and transcripts are only held long enough to classify. `src/lib/consent-log.ts` keeps just method + time (in memory until there's a backend).
 - The Figma frame labels this state "0:06 Recording…"; deliberately shown as "Listening for consent…" because nothing is recorded yet.
-- Web preview: `consent-listener.web.ts` doesn't listen; the sheet shows "Patient said yes / no" buttons instead.
+- Web preview: `consent-listener.web.ts` doesn't listen, so only the manual path works in the browser.
 
 ## Design system
 

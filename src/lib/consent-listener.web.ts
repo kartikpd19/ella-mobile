@@ -1,5 +1,5 @@
-// Web preview: no real listening. The consent sheet shows "Patient said yes / no"
-// buttons that feed transcripts in, so both paths can be tested in the browser.
+// Web preview: no real listening, so spoken consent can't be detected in the browser;
+// use "Confirm yes manually" there. Listening works in a development build.
 
 export const IS_SIMULATED_LISTENER = true;
 
