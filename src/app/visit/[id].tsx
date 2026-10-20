@@ -1,13 +1,14 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HOME_INDICATOR_HEIGHT, PrimaryButton, STATUS_BAR_HEIGHT } from '@/components/auth-screen';
 import { ConsentSheet } from '@/components/consent-sheet';
+import { RecordingCountdown } from '@/components/recording-countdown';
 import { useSimulatedPermissionPrompt } from '@/components/simulated-permission-prompt';
 import { UnderlineTabs } from '@/components/underline-tabs';
 import { StatusBadge } from '@/components/visit-row';
@@ -53,7 +54,9 @@ function goBack() {
 
 export default function VisitDetailScreen() {
   const insets = useSafeAreaInsets();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  // `?countdown=preview` plays the countdown on a loop for the device preview, without recording.
+  const { id, countdown } = useLocalSearchParams<{ id: string; countdown?: string }>();
+  const previewCountdown = countdown === 'preview';
   const visit = getVisit(id);
 
   const [tab, setTab] = useState<Tab>('Summary');
@@ -61,14 +64,33 @@ export default function VisitDetailScreen() {
   const simulated = useSimulatedPermissionPrompt();
   const [consentOpen, setConsentOpen] = useState(false);
   const consent = useConsent(id);
+  const [countdownOpen, setCountdownOpen] = useState(previewCountdown);
+  const [countdownRun, setCountdownRun] = useState(0);
 
   // Only path to recording: consent was spoken or manually confirmed, and is logged on the visit.
+  // The countdown plays next; recording starts only once it finishes (`startRecordingNow`).
   function handleConsent(method: ConsentMethod) {
     if (!visit) return;
     logConsent(visit.id, method);
     setConsentOpen(false);
+    setCountdownOpen(true);
+  }
+
+  function startRecordingNow() {
+    if (previewCountdown) {
+      setCountdownRun((run) => run + 1);
+      return;
+    }
+    if (!visit || !consent) return;
     router.push({ pathname: '/recording', params: { id: visit.id } });
   }
+
+  // The countdown stays up under the recording screen's fade-in; clear it on the way back.
+  useFocusEffect(
+    useCallback(() => {
+      if (!previewCountdown) setCountdownOpen(false);
+    }, [previewCountdown, setCountdownOpen]),
+  );
 
   const topInset = Math.max(insets.top, STATUS_BAR_HEIGHT);
   const bottomInset = Math.max(insets.bottom, HOME_INDICATOR_HEIGHT);
@@ -194,6 +216,10 @@ export default function VisitDetailScreen() {
           onConsent={handleConsent}
           onClose={() => setConsentOpen(false)}
         />
+      )}
+
+      {visit && countdownOpen && (
+        <RecordingCountdown key={countdownRun} onDone={startRecordingNow} onCancel={() => setCountdownOpen(false)} />
       )}
 
       {IS_SIMULATED && simulated.prompt}

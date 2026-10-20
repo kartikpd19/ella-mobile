@@ -31,7 +31,10 @@ export default function RootLayout() {
   // Gesture handling for the Home bottom sheet (@gorhom/bottom-sheet).
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <Stack screenOptions={{ headerShown: false }} />
+      <Stack screenOptions={{ headerShown: false }}>
+        {/* Fades in over the recording countdown's final message instead of sliding. */}
+        <Stack.Screen name="recording" options={{ animation: 'fade' }} />
+      </Stack>
     </GestureHandlerRootView>
   );
 }

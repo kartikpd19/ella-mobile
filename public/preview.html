@@ -251,6 +251,28 @@
     background: #222;
     z-index: 2;
   }
+  /* iPadOS status bar and home indicator. Figma has no tablet frames, so these follow iPadOS:
+     a 24px bar (time and date left, icons right, no notch) and a wider home indicator. */
+  .tablet .status-bar { height: 24px; }
+  .tablet .status-bar .time {
+    top: 3px;
+    left: 20px;
+    width: auto;
+    transform: none;
+    font-size: 14px;
+    line-height: 18px;
+    letter-spacing: normal;
+  }
+  .tablet .status-bar .time span { font-weight: 500; margin-left: 6px; }
+  .tablet .status-bar .right {
+    top: 6px;
+    left: auto;
+    right: 20px;
+    width: 71.4px;
+    height: 12px;
+    transform: none;
+  }
+  .tablet .home-indicator { width: 315px; margin-left: -157.5px; }
 </style>
 </head>
 <body>
@@ -270,6 +292,7 @@
         <option value="/welcome?email=john.smith@mayo.edu">Welcome / permissions</option>
         <option value="home">Home</option>
         <option value="/visit/11">Visit detail</option>
+        <option value="/visit/11?countdown=preview">Recording countdown</option>
         <option value="/privacy">Privacy Policy</option>
       </select>
     </label>
@@ -307,7 +330,14 @@
       <div class="slot">
         <div class="device tablet">
           <div class="camera"></div>
-          <div class="screen"><iframe title="Tablet preview" src="/" allow="camera"></iframe></div>
+          <div class="screen">
+            <iframe title="Tablet preview" src="/" allow="camera"></iframe>
+            <div class="status-bar" aria-hidden="true">
+              <div class="time">9:41<span>Mon Oct 19</span></div>
+              <img class="right" src="preview-assets/status-right.svg" alt="">
+            </div>
+            <div class="home-indicator" aria-hidden="true"></div>
+          </div>
         </div>
       </div>
       <div class="label">iPad · 820 × 1180</div>
@@ -402,9 +432,13 @@
   let screen = screenSelect.value;
   let variant = DEFAULT_VARIANT;
 
+  // Screens that share a path with another option get their own key.
+  const KEYS = { '/visit/11?countdown=preview': 'countdown' };
+
   // URL key for a screen: "/verify?email=…" → "verify", "/" → "start", Home → "home".
   function keyOf(value) {
     if (value === HOME) return HOME;
+    if (KEYS[value]) return KEYS[value];
     return value.split('?')[0].slice(1) || 'start';
   }
 

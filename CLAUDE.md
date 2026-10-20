@@ -19,7 +19,7 @@ Before declaring work done, run `npx tsc --noEmit` and `npx expo lint`.
 | `/welcome` | Permissions | Mic (required), notifications, calendar. Simulated prompts on web |
 | `/home` | Home | Draggable bottom sheet; three states (see below). Tapping a visit opens Visit Detail |
 | `/visit/[id]` | Visit Detail (`VisitDetailScreen`) | Figma `104:5304`. Header from the tapped visit (initials, name, age, patient ID, status badge); Summary / Transcript / Notes tabs with empty states; pinned "Ready to record?" card |
-| `/recording` | Placeholder | "Coming soon", reached only after consent; shows the logged consent |
+| `/recording` | Placeholder | "Coming soon", reached only after consent and the countdown; shows the logged consent. Fades in (set in `_layout.tsx`) |
 | `/privacy` | Placeholder | |
 
 Login → OTP → Welcome → Home. QR sign-in from Login goes straight to Home.
@@ -44,7 +44,7 @@ The doctor's name comes from the email (`john.smith@mayo.edu` → "Dr. John Smit
 
 ## Recording consent (`ConsentSheet`)
 
-**Recording never starts without consent.** Start recording (Visit Detail) → microphone check → `ConsentSheet` (`src/components/consent-sheet.tsx`, Figma `164:4784`). The only path to `/recording` is `handleConsent` in `src/app/visit/[id].tsx`, which first calls `logConsent(visitId, 'spoken' | 'manual')`.
+**Recording never starts without consent.** Start recording (Visit Detail) → microphone check → `ConsentSheet` (`src/components/consent-sheet.tsx`, Figma `164:4784`). The only path to `/recording` is `handleConsent` in `src/app/visit/[id].tsx`, which first calls `logConsent(visitId, 'spoken' | 'manual')`, then plays `RecordingCountdown`; `startRecordingNow` navigates once it finishes.
 
 - The doctor reads `CONSENT_SCRIPT` (copied exactly from Figma) to the patient by name.
 - Spoken answers: `expo-speech-recognition` (pinned `~57.1.x` for SDK 57; Expo's installer doesn't know it and would pick a newer major). `src/lib/consent-listener.ts` loads it lazily because it isn't in Expo Go — there the sheet says listening isn't available and offers manual confirm. Needs a development build to actually listen.
@@ -53,6 +53,16 @@ The doctor's name comes from the email (`john.smith@mayo.edu` → "Dr. John Smit
 - Privacy: consent audio is never saved (`recordingOptions.persist: false`) and transcripts are only held long enough to classify. `src/lib/consent-log.ts` keeps just method + time (in memory until there's a backend).
 - The Figma frame labels this state "0:06 Recording…"; deliberately shown as "Listening for consent…" because nothing is recorded yet.
 - Web preview: `consent-listener.web.ts` doesn't listen, so only the manual path works in the browser.
+
+## Recording countdown (`RecordingCountdown`)
+
+After consent, `src/components/recording-countdown.tsx` (Figma `104:5359`–`104:5368`, "iPhone 16 - 65…68") covers Visit Detail full screen: **3**, **2**, **1** (0.8 s each), then "Wishing you a great session! 😊" (1.2 s), then `/recording`.
+
+- **Recording starts only in `onDone`**, after the final message. Nothing is captured during the countdown; when real capture and the timer are built, start them there.
+- One Reanimated clock drives every step, so each number fades and scales in (0.92 → 1, drifting to 1.03) and crossfades into the next; the message just fades in. Reduced motion drops the scaling. Light haptic tick per number.
+- **Cancel** (not in Figma, so it's a quiet `Link`-style label in `Content-muted`) and Android back return to Visit Detail without recording. Consent stays logged.
+- The overlay stays up under `/recording`'s fade-in and is cleared when Visit Detail regains focus.
+- `?countdown=preview` on `/visit/[id]` loops the countdown without consent or navigation (device preview only).
 
 ## Design system
 
@@ -63,7 +73,7 @@ The doctor's name comes from the email (`john.smith@mayo.edu` → "Dr. John Smit
 
 ## Device preview
 
-With `npx expo start` running, open `http://localhost:8081/preview.html` (`public/preview.html`): phone/tablet frames with the Figma status bar and home indicator, a **Screen** picker (Home adds a **Variant** dropdown: Not synced, Syncing, Visit list, Sheet expanded), and deep links like `?screen=home&state=list&sheet=expanded#both` (the older `?screen=home%3Fstate%3Dlist` form still works). Files in `public/` ship with web exports.
+With `npx expo start` running, open `http://localhost:8081/preview.html` (`public/preview.html`): phone/tablet frames with status bars and home indicators (phone from Figma; tablet follows iPadOS since Figma has no tablet frames), a **Screen** picker (Home adds a **Variant** dropdown: Not synced, Syncing, Visit list, Sheet expanded; **Recording countdown** loops the countdown, `?screen=countdown`), and deep links like `?screen=home&state=list&sheet=expanded#both` (the older `?screen=home%3Fstate%3Dlist` form still works). Files in `public/` ship with web exports.
 
 ## Git
 
