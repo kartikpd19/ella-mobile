@@ -296,6 +296,8 @@
         <option value="/recording?id=11&sim=quiet">Recording: quiet</option>
         <option value="/recording?id=11&sim=speaking">Recording: speaking</option>
         <option value="/recording?id=11&sim=paused">Recording: paused</option>
+        <option value="/visit/11?summary=reveal">Visit summary: revealing</option>
+        <option value="/visit/11?summary=complete">Visit summary: complete</option>
         <option value="/privacy">Privacy Policy</option>
       </select>
     </label>
@@ -308,6 +310,7 @@
       </select>
     </label>
     <div class="spacer"></div>
+    <button class="icon-btn" id="replay" type="button" hidden>Replay animation</button>
     <button class="icon-btn" id="reload" type="button">Reload</button>
     <a class="icon-btn" id="open-app" href="/" target="_blank" rel="noopener">Open app</a>
   </header>
@@ -420,6 +423,7 @@
   const openApp = document.getElementById('open-app');
   const variantPick = document.getElementById('variant-pick');
   const variantSelect = document.getElementById('variant');
+  const replay = document.getElementById('replay');
 
   const HOME = 'home';
   const TEST_EMAIL = 'john.smith@mayo.edu';
@@ -441,7 +445,10 @@
     '/recording?id=11&sim=quiet': 'recording-quiet',
     '/recording?id=11&sim=speaking': 'recording-speaking',
     '/recording?id=11&sim=paused': 'recording-paused',
+    '/visit/11?summary=reveal': 'summary-revealing',
+    '/visit/11?summary=complete': 'summary-complete',
   };
+  const REVEAL = '/visit/11?summary=reveal';
 
   // URL key for a screen: "/verify?email=…" → "verify", "/" → "start", Home → "home".
   function keyOf(value) {
@@ -487,6 +494,7 @@
 
     screenSelect.value = screen;
     variantPick.hidden = !isHome;
+    replay.hidden = !screen.includes('summary=');
     variantSelect.value = variant;
 
     frames.forEach(f => { f.src = path; });
@@ -536,6 +544,16 @@
   variantSelect.addEventListener('change', () => {
     variant = variantSelect.value;
     render();
+  });
+
+  // Plays the summary reveal again from the start (a fresh load, so nothing is remembered).
+  replay.addEventListener('click', () => {
+    if (screen !== REVEAL) {
+      screen = REVEAL;
+      render();
+      return;
+    }
+    frames.forEach(f => { f.src = `${REVEAL}&replay=${Date.now()}`; });
   });
 
   // Reloads whatever screen each frame is on now, even after navigating inside the app.

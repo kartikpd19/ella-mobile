@@ -16,6 +16,7 @@ import { useConsent } from '@/lib/consent-log';
 import { addNote, finishRecording, formatElapsed } from '@/lib/recording-log';
 import { IS_SIMULATED_MIC, useRecordingSession } from '@/lib/recording-session';
 import { getVisit } from '@/lib/sample-visits';
+import { generateSummary } from '@/lib/visit-summary';
 
 // Measured from the Figma frames "iPhone 16 - 51" (104:4501) and "iPhone 16 - 38" (104:4459);
 // no design.md token for these.
@@ -81,7 +82,9 @@ export default function RecordingScreen() {
     const durationMs = session.elapsedMs;
     const uri = await session.stop();
     finishRecording(visit.id, uri, durationMs);
-    router.replace({ pathname: '/processing', params: { id: visit.id } });
+    generateSummary(visit.id);
+    // Back to the visit, which now shows the summary and plays its reveal.
+    router.dismissTo({ pathname: '/visit/[id]', params: { id: visit.id } });
   }
 
   function saveNote(text: string) {

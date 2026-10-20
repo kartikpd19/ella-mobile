@@ -2,13 +2,15 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useState } from 'react';
+import * as Haptics from 'expo-haptics';
+import { useCallback, useEffect, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HOME_INDICATOR_HEIGHT, PrimaryButton, STATUS_BAR_HEIGHT } from '@/components/auth-screen';
 import { ConsentSheet } from '@/components/consent-sheet';
 import { RecordingCountdown } from '@/components/recording-countdown';
+import { SummaryReveal } from '@/components/summary-reveal';
 import { useSimulatedPermissionPrompt } from '@/components/simulated-permission-prompt';
 import { UnderlineTabs } from '@/components/underline-tabs';
 import { StatusBadge } from '@/components/visit-row';
@@ -16,6 +18,7 @@ import { EllaColors, EllaFonts, EllaSpacing } from '@/constants/ella-tokens';
 import { getPermission, IS_SIMULATED, requestPermission } from '@/lib/permissions';
 import { describeConsent, logConsent, useConsent, type ConsentMethod } from '@/lib/consent-log';
 import { getVisit, initials } from '@/lib/sample-visits';
+import { markSummaryImported, markSummaryShown, SAMPLE_SUMMARY, useSummary, type VisitSummary } from '@/lib/visit-summary';
 
 const TABS = ['Summary', 'Transcript', 'Notes'] as const;
 type Tab = (typeof TABS)[number];
@@ -43,6 +46,7 @@ const Frame = {
 const TOP_BAR_OFFSET = 31; // below the status bar
 const AVATAR_SIZE = 51;
 const CARD_BOTTOM_GAP = 44; // above the home indicator
+const IMPORTED_PAUSE_MS = 900; // how long the success check shows before going Home
 
 function goBack() {
   if (router.canGoBack()) {
@@ -55,9 +59,27 @@ function goBack() {
 export default function VisitDetailScreen() {
   const insets = useSafeAreaInsets();
   // `?countdown=preview` plays the countdown on a loop for the device preview, without recording.
-  const { id, countdown } = useLocalSearchParams<{ id: string; countdown?: string }>();
+  // `?summary=reveal|complete` shows the sample summary for the preview without a recording.
+  const { id, countdown, summary: summaryParam } = useLocalSearchParams<{
+    id: string;
+    countdown?: string;
+    summary?: string;
+  }>();
   const previewCountdown = countdown === 'preview';
   const visit = getVisit(id);
+
+  // After a recording, this screen becomes the visit summary (Figma 293:6174).
+  const stored = useSummary(id);
+  const previewSummary = summaryParam === 'reveal' || summaryParam === 'complete' ? summaryParam : undefined;
+  const [previewShown, setPreviewShown] = useState(previewSummary === 'complete');
+  const summary: VisitSummary | undefined =
+    stored ??
+    (previewSummary && {
+      sections: SAMPLE_SUMMARY,
+      revealed: previewSummary === 'complete',
+      status: previewShown ? 'In-review' : 'Draft',
+    });
+  const [imported, setImported] = useState(false);
 
   const [tab, setTab] = useState<Tab>('Summary');
   const [micBlocked, setMicBlocked] = useState(false);
@@ -91,6 +113,27 @@ export default function VisitDetailScreen() {
       if (!previewCountdown) setCountdownOpen(false);
     }, [previewCountdown, setCountdownOpen]),
   );
+
+  function summaryShown() {
+    if (stored) {
+      markSummaryShown(id);
+    } else {
+      setPreviewShown(true);
+    }
+  }
+
+  function importSummary() {
+    if (stored) markSummaryImported(id);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    setImported(true);
+  }
+
+  // The slider shows its success check briefly, then it's back to Home.
+  useEffect(() => {
+    if (!imported) return;
+    const timer = setTimeout(() => router.dismissTo('/home'), IMPORTED_PAUSE_MS);
+    return () => clearTimeout(timer);
+  }, [imported]);
 
   const topInset = Math.max(insets.top, STATUS_BAR_HEIGHT);
   const bottomInset = Math.max(insets.bottom, HOME_INDICATOR_HEIGHT);
@@ -134,8 +177,8 @@ export default function VisitDetailScreen() {
         <Pressable onPress={goBack} accessibilityRole="button" accessibilityLabel="Back to Home" hitSlop={10}>
           <Image source={require('@/assets/images/visit/back.svg')} style={styles.icon} />
         </Pressable>
-        <Text style={styles.topTitle} accessibilityRole="header">
-          Visit detail
+        <Text style={summary ? styles.summaryTitle : styles.topTitle} accessibilityRole="header">
+          {summary ? 'Patient summary' : 'Visit detail'}
         </Text>
         {/* Placeholder: the menu has no actions yet. */}
         <Pressable accessibilityRole="button" accessibilityLabel="More options" hitSlop={10}>
@@ -160,46 +203,61 @@ export default function VisitDetailScreen() {
                 </Text>
               </View>
             </View>
-            <StatusBadge visit={visit} fallbackToAppointment />
+            <StatusBadge visit={summary ? { ...visit, note: summary.status } : visit} fallbackToAppointment />
           </View>
 
-          <View style={styles.tabsWrap}>
-            <View style={styles.tabDivider} />
-            <UnderlineTabs tabs={TABS} selected={tab} onSelect={setTab} style={styles.tabs} />
-          </View>
-
-          <View style={styles.body}>
-            <LinearGradient
-              colors={Frame.wash}
-              locations={[0, 0.35, 0.65, 1]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 0.35, y: 1 }}
-              style={StyleSheet.absoluteFill}
-              pointerEvents="none"
-            />
-            <View style={styles.empty}>
-              <Image source={empty.icon} style={styles.emptyIcon} />
-              <Text style={styles.emptyText}>{empty.text}</Text>
-            </View>
-          </View>
-
-          {/* Pinned above the home indicator, over the tab content. */}
-          <View style={[styles.card, { bottom: bottomInset + CARD_BOTTOM_GAP }]}>
-            <Text style={styles.cardTitle}>Ready to record?</Text>
-            <Text style={styles.cardText}>Start recording to capture this consultation.</Text>
-            {consent && <Text style={styles.consentNote}>{describeConsent(consent)}</Text>}
-            <PrimaryButton label="Start recording" onPress={startRecording} style={styles.recordButton} />
-            {micBlocked && (
-              <View style={styles.micBlocked}>
-                <Text style={styles.micNote} accessibilityRole="alert">
-                  Ella needs microphone access to record.
-                </Text>
-                <Text style={styles.micLink} onPress={openSettings} accessibilityRole="link">
-                  {IS_SIMULATED ? 'Try again' : 'Open settings'}
-                </Text>
+          {summary ? (
+            <>
+              <View style={styles.summaryDivider} />
+              <SummaryReveal
+                sections={summary.sections}
+                animate={!summary.revealed}
+                onShown={summaryShown}
+                onEdit={() => router.push({ pathname: '/edit-summary', params: { id: visit.id } })}
+                onImport={importSummary}
+              />
+            </>
+          ) : (
+            <>
+              <View style={styles.tabsWrap}>
+                <View style={styles.tabDivider} />
+                <UnderlineTabs tabs={TABS} selected={tab} onSelect={setTab} style={styles.tabs} />
               </View>
-            )}
-          </View>
+
+              <View style={styles.body}>
+                <LinearGradient
+                  colors={Frame.wash}
+                  locations={[0, 0.35, 0.65, 1]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 0.35, y: 1 }}
+                  style={StyleSheet.absoluteFill}
+                  pointerEvents="none"
+                />
+                <View style={styles.empty}>
+                  <Image source={empty.icon} style={styles.emptyIcon} />
+                  <Text style={styles.emptyText}>{empty.text}</Text>
+                </View>
+              </View>
+
+              {/* Pinned above the home indicator, over the tab content. */}
+              <View style={[styles.card, { bottom: bottomInset + CARD_BOTTOM_GAP }]}>
+                <Text style={styles.cardTitle}>Ready to record?</Text>
+                <Text style={styles.cardText}>Start recording to capture this consultation.</Text>
+                {consent && <Text style={styles.consentNote}>{describeConsent(consent)}</Text>}
+                <PrimaryButton label="Start recording" onPress={startRecording} style={styles.recordButton} />
+                {micBlocked && (
+                  <View style={styles.micBlocked}>
+                    <Text style={styles.micNote} accessibilityRole="alert">
+                      Ella needs microphone access to record.
+                    </Text>
+                    <Text style={styles.micLink} onPress={openSettings} accessibilityRole="link">
+                      {IS_SIMULATED ? 'Try again' : 'Open settings'}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </>
+          )}
         </>
       ) : (
         <View style={styles.missing}>
@@ -249,6 +307,20 @@ const styles = StyleSheet.create({
     letterSpacing: 0.96,
     color: EllaColors.contentInk,
     textAlign: 'center',
+  },
+  // Figma 293:6174: "Patient summary" in the top bar.
+  summaryTitle: {
+    fontFamily: EllaFonts.interSemiBold,
+    fontSize: 20,
+    lineHeight: 21,
+    color: EllaColors.contentInk,
+    textAlign: 'center',
+  },
+  summaryDivider: {
+    height: 4,
+    marginTop: 16,
+    borderRadius: 2,
+    backgroundColor: Frame.tabDivider,
   },
   patient: {
     flexDirection: 'row',

@@ -1,4 +1,4 @@
-import { router, useLocalSearchParams } from 'expo-router';
+import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -6,7 +6,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AuthBackground, AuthColors, PrimaryButton, STATUS_BAR_HEIGHT } from '@/components/auth-screen';
 import { EllaLogo } from '@/components/ella-logo';
 import { EllaColors, EllaFonts, EllaSpacing } from '@/constants/ella-tokens';
-import { formatElapsed, useRecording } from '@/lib/recording-log';
 
 function goBack() {
   if (router.canGoBack()) {
@@ -16,13 +15,9 @@ function goBack() {
   }
 }
 
-/** Placeholder after "End and save" on the recording screen, until processing is built. */
-export default function ProcessingScreen() {
+/** Placeholder for "Edit" on the visit summary, until editing is built. */
+export default function EditSummaryScreen() {
   const insets = useSafeAreaInsets();
-  const { id } = useLocalSearchParams<{ id?: string }>();
-  const recording = useRecording(id);
-  const notes = recording?.notes.length ?? 0;
-
   return (
     <View style={[styles.screen, { paddingTop: Math.max(insets.top, STATUS_BAR_HEIGHT) + 48 }]}>
       <StatusBar style="dark" />
@@ -34,17 +29,11 @@ export default function ProcessingScreen() {
           <Text style={styles.title} accessibilityRole="header">
             Coming soon
           </Text>
-          <Text style={styles.subtitle}>Processing recordings into notes isn’t available yet.</Text>
-          {recording?.endedAt && (
-            <Text style={styles.saved}>
-              Recording saved · {formatElapsed(recording.durationMs)}
-              {notes > 0 && ` · ${notes} ${notes === 1 ? 'note' : 'notes'}`}
-            </Text>
-          )}
+          <Text style={styles.subtitle}>Editing summaries isn’t available yet.</Text>
         </View>
 
         <View style={styles.buttonWrap}>
-          <PrimaryButton label="Back to visit" onPress={goBack} />
+          <PrimaryButton label="Back to summary" onPress={goBack} />
         </View>
       </View>
     </View>
@@ -79,14 +68,6 @@ const styles = StyleSheet.create({
     fontFamily: EllaFonts.displayRoman,
     fontSize: 16,
     color: AuthColors.subtitle,
-    textAlign: 'center',
-  },
-  saved: {
-    marginTop: EllaSpacing.xs,
-    fontFamily: EllaFonts.interRegular,
-    fontSize: 12,
-    lineHeight: 16,
-    color: EllaColors.semanticSuccess,
     textAlign: 'center',
   },
   buttonWrap: {

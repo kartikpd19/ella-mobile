@@ -18,9 +18,9 @@ Before declaring work done, run `npx tsc --noEmit` and `npx expo lint`.
 | `/scan` | QR scanner | `expo-camera`; any QR is accepted. `?from=home` = re-sync from Home (returns to Home, hides "Use institute login instead") |
 | `/welcome` | Permissions | Mic (required), notifications, calendar. Simulated prompts on web |
 | `/home` | Home | Draggable bottom sheet; three states (see below). Tapping a visit opens Visit Detail |
-| `/visit/[id]` | Visit Detail (`VisitDetailScreen`) | Figma `104:5304`. Header from the tapped visit (initials, name, age, patient ID, status badge); Summary / Transcript / Notes tabs with empty states; pinned "Ready to record?" card |
+| `/visit/[id]` | Visit Detail (`VisitDetailScreen`) | Figma `104:5304`; once a recording is saved it becomes the visit summary (Figma `293:6174`, see below). Header from the tapped visit (initials, name, age, patient ID, status badge); Summary / Transcript / Notes tabs with empty states; pinned "Ready to record?" card |
 | `/recording` | Recording (`RecordingScreen`) | Figma `104:4501` (quiet) / `104:4459` (speaking). Reached only after consent and the countdown. Fades in, swipe-back off (`_layout.tsx`). `?sim=quiet\|speaking\|paused` previews it in the browser |
-| `/processing` | Placeholder | "Coming soon" after End and save; shows the saved duration and note count |
+| `/edit-summary` | Placeholder | "Coming soon" from Edit on the visit summary |
 | `/privacy` | Placeholder | |
 
 Login → OTP → Welcome → Home. QR sign-in from Login goes straight to Home.
@@ -72,10 +72,20 @@ After consent, `src/components/recording-countdown.tsx` (Figma `104:5359`–`104
 - `src/lib/recording-session.ts` wraps `expo-audio` (`useAudioRecorder` with metering, polled every 100 ms). Metering −50…−10 dBFS maps to level 0…1; the timer is the recorder's own duration, so it stops while paused. `allowsBackgroundRecording` plus the expo-audio plugin's `enableBackgroundRecording` (app.json) keep it recording in the background; needs a development build.
 - `recording-session.web.ts` simulates the level instead (speech comes and goes; `?sim=` fixes it to quiet, speaking or paused, starting at Figma's 00:23:12).
 - `AudioLevelVisual` (`src/components/audio-level-visual.tsx`): six 15px gradient dots; above level 0.08 each springs toward its height in the speaking frame, scaled by the level with its own wobble. Reduced motion uses short timings instead of springs.
-- **Pause** → "Paused" (muted) and **Resume** (`resume.svg`, drawn to match the Pause icon; Figma has no play icon). **Add Note** opens `AddNoteSheet`; the note keeps the recording time it was opened at and recording continues. **End**, the back arrow and Android back all open `EndRecordingDialog` ("End and save" / "Keep recording"). End stops, saves and replaces the route with `/processing`.
+- **Pause** → "Paused" (muted) and **Resume** (`resume.svg`, drawn to match the Pause icon; Figma has no play icon). **Add Note** opens `AddNoteSheet`; the note keeps the recording time it was opened at and recording continues. **End**, the back arrow and Android back all open `EndRecordingDialog` ("End and save" / "Keep recording"). End stops, saves, generates the summary and `dismissTo`s back to the visit.
 - Notes and the finished recording (file URI, duration) live in `src/lib/recording-log.ts`, in memory until there's a backend.
 - The screen stays awake while open (`useKeepAwake`, including while paused).
 - `SecondaryButton` (design.md `Button - Secondary`) sits next to `PrimaryButton` in `auth-screen.tsx`.
+
+## Visit summary (`SummaryReveal`)
+
+After End and save, `generateSummary(visitId)` (`src/lib/visit-summary.ts`, sample content from Figma) and Visit Detail switches to frame `293:6174`: "Patient summary" title, the patient row with the status badge, a "Summary" label instead of tabs, then Reason For Visit, What the patient shared, Assessment, Medications, Follow-up. (The frame repeats "What the patient shared"; it's shown once.)
+
+- `src/components/summary-reveal.tsx`, one Reanimated clock: per section (1.05 s) the marker spins 0.6 s, the Figma asterisk marker fills in, the heading fades in, then the body fades in rising 8px; then the "Written by Ella…" note fades in and the Edit / Swipe to Import bar slides up (~5.9 s total). The scroll follows the section being written.
+- Plays only while the summary isn't `revealed`; leaving mid-way still counts. Tap anywhere (below the top bar) to skip. Reduced motion shows it all at once. Edit and the slider stay disabled until the end.
+- Badge: Draft while revealing, In-review once shown, Imported after Swipe to Import (`markSummaryShown` keeps Imported).
+- `SwipeToConfirm` (`src/components/swipe-to-confirm.tsx`, design.md `Button- Swipe`): gesture-handler pan, confirms past 85%, turns green with a check, then Home after 0.9 s. The thumb's image ignores pointer events so mouse drags work on the web. Screen readers get an `activate` action. Edit → `/edit-summary`.
+- `?summary=reveal|complete` on `/visit/[id]` shows the sample summary without recording (device preview).
 
 ## Design system
 
@@ -86,7 +96,7 @@ After consent, `src/components/recording-countdown.tsx` (Figma `104:5359`–`104
 
 ## Device preview
 
-With `npx expo start` running, open `http://localhost:8081/preview.html` (`public/preview.html`): phone/tablet frames with status bars and home indicators (phone from Figma; tablet follows iPadOS since Figma has no tablet frames), a **Screen** picker (Home adds a **Variant** dropdown: Not synced, Syncing, Visit list, Sheet expanded; **Recording countdown** loops the countdown, `?screen=countdown`; **Recording: quiet / speaking / paused** use the simulated mic, `?screen=recording-speaking` etc.), and deep links like `?screen=home&state=list&sheet=expanded#both` (the older `?screen=home%3Fstate%3Dlist` form still works). Files in `public/` ship with web exports.
+With `npx expo start` running, open `http://localhost:8081/preview.html` (`public/preview.html`): phone/tablet frames with status bars and home indicators (phone from Figma; tablet follows iPadOS since Figma has no tablet frames), a **Screen** picker (Home adds a **Variant** dropdown: Not synced, Syncing, Visit list, Sheet expanded; **Recording countdown** loops the countdown, `?screen=countdown`; **Recording: quiet / speaking / paused** use the simulated mic, `?screen=recording-speaking` etc.; **Visit summary: revealing / complete**, `?screen=summary-revealing`, with a **Replay animation** button), and deep links like `?screen=home&state=list&sheet=expanded#both` (the older `?screen=home%3Fstate%3Dlist` form still works). Files in `public/` ship with web exports.
 
 ## Git
 
