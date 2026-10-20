@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Text,
   View,
+  type DimensionValue,
   type LayoutRectangle,
 } from 'react-native';
 import Animated, {
@@ -23,13 +24,13 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HOME_INDICATOR_HEIGHT } from '@/components/auth-screen';
+import { SummarySkeleton, SummarySkeletonStatus, useShimmer } from '@/components/summary-skeleton';
 import { SwipeToConfirm } from '@/components/swipe-to-confirm';
 import { EllaColors, EllaFonts, EllaSpacing } from '@/constants/ella-tokens';
 import type { SummarySection } from '@/lib/visit-summary';
 
 // Measured from the Figma frame "iPhone 16 - 79" (293:6174); no design.md token for these.
 const Frame = {
-  label: 'rgba(30,32,36,0.52)',
   heading: '#000000',
   markerBorder: '#DCE2FD',
   rail: '#F1F1F1',
@@ -48,7 +49,13 @@ const BAR_BOTTOM_GAP = 7; // above the home indicator
 const BAR_HEIGHT = 67;
 const FADE_HEIGHT = 255;
 
-// SummaryReveal timeline, in ms. Each section: spinner, then the dot fills, then heading, then body.
+// SummaryReveal timeline, in ms. First the skeleton (SummarySkeleton) for SKELETON_MS, then each
+// section: spinner, then the dot fills, then heading, then body. As a section starts, its skeleton
+// block fades out and its slot grows to the real height, so nothing above it moves.
+const SKELETON_MS = 2000;
+const SKELETON_FADE_MS = 250;
+const GROW_MS = 300;
+const STATUS_ROOM = 28; // "Ella is writing your note..." and the space under it
 const SPIN_MS = 600;
 const DOT_MS = 150;
 const HEADING_AT = 700;
@@ -61,6 +68,17 @@ const HEADING_ROOM = 48; // marker, heading and the first line of the body
 const NOTE_MS = 300;
 const BAR_MS = 400;
 
+// Skeleton shapes per section: heading bar width and 2–4 body lines, the last one shorter.
+const SKELETONS: { heading: DimensionValue; lines: DimensionValue[] }[] = [
+  { heading: '42%', lines: ['100%', '94%', '58%'] },
+  { heading: '56%', lines: ['100%', '96%', '90%', '64%'] },
+  { heading: '34%', lines: ['100%', '88%', '52%'] },
+  { heading: '38%', lines: ['100%', '70%'] },
+  { heading: '30%', lines: ['100%', '92%', '60%'] },
+];
+const SCROLL_LEFT = 19; // content padding, from the Figma frame
+const TEXT_X = SCROLL_LEFT + MARKER + COLUMN_GAP;
+
 const easeOut = Easing.out(Easing.cubic);
 
 /** 0 → 1 between `from` and `to` on the reveal clock, eased. */
@@ -71,8 +89,10 @@ function ramp(t: number, from: number, to: number) {
 
 type SummaryRevealProps = {
   sections: SummarySection[];
-  /** Play the reveal (first showing only). Otherwise everything shows at once. */
+  /** Play the skeleton and reveal (first showing only). Otherwise everything shows at once. */
   animate: boolean;
+  /** Device preview: stay on the skeleton instead of handing off to the reveal. */
+  holdSkeleton?: boolean;
   /** The whole summary is visible: at the end of the reveal, on skip, or straight away. */
   onShown: () => void;
   onEdit: () => void;
@@ -81,16 +101,18 @@ type SummaryRevealProps = {
 
 /**
  * The visit summary, written in one section at a time like the AI Assess animation on the Ella web
- * app. Tapping anywhere during the reveal skips to the end.
+ * app, after a short skeleton while Ella "writes". Tapping anywhere before the end skips to it.
  */
-export function SummaryReveal({ sections, animate, onShown, onEdit, onImport }: SummaryRevealProps) {
+export function SummaryReveal({ sections, animate, holdSkeleton = false, onShown, onEdit, onImport }: SummaryRevealProps) {
   const insets = useSafeAreaInsets();
   const reduceMotion = useReducedMotion();
   // Captured once: the parent marks the summary shown at the end, which must not restart anything.
   const [play] = useState(animate && !reduceMotion);
   const [done, setDone] = useState(!play);
 
-  const noteAt = sections.length * SECTION_MS;
+  const shimmer = useShimmer(play);
+  const startOf = (i: number) => SKELETON_MS + i * SECTION_MS;
+  const noteAt = startOf(sections.length);
   const barAt = noteAt + NOTE_MS;
   const total = barAt + BAR_MS;
   const clock = useSharedValue(play ? 0 : total);
@@ -99,6 +121,7 @@ export function SummaryReveal({ sections, animate, onShown, onEdit, onImport }: 
   const scrollY = useRef(0);
   const viewport = useRef(0);
   const layouts = useRef<LayoutRectangle[]>([]);
+  const heights = useRef<number[]>([]); // real section heights (slots grow into them)
   const sectionsY = useRef(0); // sections are measured inside their container
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const shown = useRef(false);
@@ -130,7 +153,7 @@ export function SummaryReveal({ sections, animate, onShown, onEdit, onImport }: 
     if (!section) return;
     const visible = viewport.current - (BAR_HEIGHT + Math.max(insets.bottom, HOME_INDICATOR_HEIGHT) + EllaSpacing.xl);
     const top = sectionsY.current + section.y;
-    const bottom = part === 'heading' ? top + HEADING_ROOM : top + section.height;
+    const bottom = part === 'heading' ? top + HEADING_ROOM : top + (heights.current[index] ?? section.height);
     const target = Math.min(bottom - visible, top - EllaSpacing.md);
     if (target > scrollY.current) scroll.current?.scrollTo({ y: target, animated: true });
   }
@@ -140,11 +163,13 @@ export function SummaryReveal({ sections, animate, onShown, onEdit, onImport }: 
       finish();
       return;
     }
+    AccessibilityInfo.announceForAccessibility('Ella is writing your note');
+    if (holdSkeleton) return;
     clock.value = withTiming(total, { duration: total, easing: Easing.linear });
     sections.forEach((_, i) => {
       timers.current.push(
-        setTimeout(() => follow(i, 'heading'), i * SECTION_MS),
-        setTimeout(() => follow(i, 'body'), i * SECTION_MS + BODY_AT),
+        setTimeout(() => follow(i, 'heading'), startOf(i)),
+        setTimeout(() => follow(i, 'body'), startOf(i) + BODY_AT),
       );
     });
     timers.current.push(
@@ -165,6 +190,11 @@ export function SummaryReveal({ sections, animate, onShown, onEdit, onImport }: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // The status line fades as the reveal starts and folds its space away over the first spinner.
+  const statusStyle = useAnimatedStyle(() => ({
+    opacity: 1 - ramp(clock.value, SKELETON_MS - 200, SKELETON_MS + 100),
+    height: STATUS_ROOM * (1 - ramp(clock.value, SKELETON_MS, SKELETON_MS + GROW_MS)),
+  }));
   const noteStyle = useAnimatedStyle(() => ({ opacity: ramp(clock.value, noteAt, noteAt + NOTE_MS) }));
   const barStyle = useAnimatedStyle(() => {
     const p = ramp(clock.value, barAt, barAt + BAR_MS);
@@ -180,18 +210,26 @@ export function SummaryReveal({ sections, animate, onShown, onEdit, onImport }: 
         onLayout={(e) => (viewport.current = e.nativeEvent.layout.height)}
         onScroll={(e) => (scrollY.current = e.nativeEvent.contentOffset.y)}
         scrollEventThrottle={16}
+        showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.content, { paddingBottom: bottomInset + BAR_BOTTOM_GAP + BAR_HEIGHT + EllaSpacing.section }]}>
-        <Text style={styles.label}>Summary</Text>
+        {play && (
+          <Animated.View style={[styles.statusRow, statusStyle]}>
+            <SummarySkeletonStatus />
+          </Animated.View>
+        )}
 
-        <View style={styles.sections} onLayout={(e) => (sectionsY.current = e.nativeEvent.layout.y)}>
+        <View onLayout={(e) => (sectionsY.current = e.nativeEvent.layout.y)}>
           {sections.map((section, i) => (
             <Section
               key={section.title}
               section={section}
-              start={i * SECTION_MS}
+              index={i}
+              start={startOf(i)}
               last={i === sections.length - 1}
               clock={clock}
+              shimmer={play ? shimmer : undefined}
               onLayout={(layout) => (layouts.current[i] = layout)}
+              onHeight={(height) => (heights.current[i] = height)}
             />
           ))}
         </View>
@@ -234,13 +272,24 @@ export function SummaryReveal({ sections, animate, onShown, onEdit, onImport }: 
 
 type SectionProps = {
   section: SummarySection;
+  index: number;
   start: number;
   last: boolean;
   clock: SharedValue<number>;
+  /** Set while the skeleton plays: the section starts as a skeleton block and grows into place. */
+  shimmer?: SharedValue<number>;
   onLayout: (layout: LayoutRectangle) => void;
+  onHeight: (height: number) => void;
 };
 
-function Section({ section, start, last, clock, onLayout }: SectionProps) {
+function Section({ section, index, start, last, clock, shimmer, onLayout, onHeight }: SectionProps) {
+  const skeletonHeight = useSharedValue(0);
+  const realHeight = useSharedValue(0);
+  const slotStyle = useAnimatedStyle(() => ({
+    height: skeletonHeight.value + (realHeight.value - skeletonHeight.value) * ramp(clock.value, start, start + GROW_MS),
+  }));
+  const skeletonStyle = useAnimatedStyle(() => ({ opacity: 1 - ramp(clock.value, start, start + SKELETON_FADE_MS) }));
+
   const markerStyle = useAnimatedStyle(() => ({ opacity: ramp(clock.value, start, start + 150) }));
   const spinnerStyle = useAnimatedStyle(() => ({ opacity: 1 - ramp(clock.value, start + SPIN_MS, start + SPIN_MS + DOT_MS) }));
   const dotStyle = useAnimatedStyle(() => {
@@ -253,35 +302,67 @@ function Section({ section, start, last, clock, onLayout }: SectionProps) {
     return { opacity: p, transform: [{ translateY: (1 - p) * BODY_RISE }] };
   });
 
+  const content = (
+    <View style={styles.section}>
+      {/* The rail joins this marker to the next one, like the Figma "Line 3". */}
+      <Animated.View style={[styles.rail, last && styles.railLast, bodyStyle]} />
+      <Animated.View style={[styles.marker, markerStyle]}>
+        <Animated.View style={[styles.markerFill, spinnerStyle]}>
+          <Spinner />
+        </Animated.View>
+        <Animated.View style={[styles.markerFill, dotStyle]}>
+          <Asterisk />
+        </Animated.View>
+      </Animated.View>
+
+      <View style={styles.sectionText}>
+        <Animated.Text style={[styles.heading, headingStyle]} accessibilityRole="header">
+          {section.title}
+        </Animated.Text>
+        <Animated.View style={[styles.body, bodyStyle]}>
+          {section.text && <Text style={styles.bodyText}>{section.text}</Text>}
+          {section.bullets?.map((bullet) => (
+            <View key={bullet} style={styles.bullet}>
+              <Text style={styles.bodyText}>{'•'}</Text>
+              <Text style={[styles.bodyText, styles.bulletText]}>{bullet}</Text>
+            </View>
+          ))}
+        </Animated.View>
+      </View>
+    </View>
+  );
+  const skeleton = SKELETONS[index % SKELETONS.length];
+
   return (
     <View onLayout={(e) => onLayout(e.nativeEvent.layout)}>
-      <View style={styles.section}>
-        {/* The rail joins this marker to the next one, like the Figma "Line 3". */}
-        <Animated.View style={[styles.rail, last && styles.railLast, bodyStyle]} />
-        <Animated.View style={[styles.marker, markerStyle]}>
-          <Animated.View style={[styles.markerFill, spinnerStyle]}>
-            <Spinner />
+      {shimmer ? (
+        // Skeleton and section share one slot; the slot grows from one height to the other.
+        <Animated.View style={slotStyle}>
+          <Animated.View
+            style={[styles.layer, skeletonStyle]}
+            onLayout={(e) => skeletonHeight.set(e.nativeEvent.layout.height)}
+            pointerEvents="none">
+            <SummarySkeleton
+              lines={skeleton.lines}
+              headingWidth={skeleton.heading}
+              shimmer={shimmer}
+              markerX={SCROLL_LEFT}
+              textX={TEXT_X}
+              gap={COLUMN_GAP}
+            />
           </Animated.View>
-          <Animated.View style={[styles.markerFill, dotStyle]}>
-            <Asterisk />
-          </Animated.View>
+          <View
+            style={styles.layer}
+            onLayout={(e) => {
+              realHeight.set(e.nativeEvent.layout.height);
+              onHeight(e.nativeEvent.layout.height);
+            }}>
+            {content}
+          </View>
         </Animated.View>
-
-        <View style={styles.sectionText}>
-          <Animated.Text style={[styles.heading, headingStyle]} accessibilityRole="header">
-            {section.title}
-          </Animated.Text>
-          <Animated.View style={[styles.body, bodyStyle]}>
-            {section.text && <Text style={styles.bodyText}>{section.text}</Text>}
-            {section.bullets?.map((bullet) => (
-              <View key={bullet} style={styles.bullet}>
-                <Text style={styles.bodyText}>{'•'}</Text>
-                <Text style={[styles.bodyText, styles.bulletText]}>{bullet}</Text>
-              </View>
-            ))}
-          </Animated.View>
-        </View>
-      </View>
+      ) : (
+        content
+      )}
       {!last && <Animated.View style={[styles.divider, bodyStyle]} />}
     </View>
   );
@@ -315,18 +396,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    paddingTop: 22, // divider to the "Summary" label
-    paddingLeft: 19,
+    paddingTop: EllaSpacing.xxl,
+    paddingLeft: SCROLL_LEFT,
     paddingRight: EllaSpacing.md,
   },
-  label: {
-    fontFamily: EllaFonts.interMedium,
-    fontSize: 14,
-    letterSpacing: 0.84,
-    color: Frame.label,
+  statusRow: {
+    overflow: 'hidden',
   },
-  sections: {
-    marginTop: EllaSpacing.xl,
+  layer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
   },
   section: {
     flexDirection: 'row',

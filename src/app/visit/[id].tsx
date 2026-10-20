@@ -60,7 +60,8 @@ function goBack() {
 export default function VisitDetailScreen() {
   const insets = useSafeAreaInsets();
   // `?countdown=preview` plays the countdown on a loop for the device preview, without recording.
-  // `?summary=reveal|complete` shows the sample summary for the preview without a recording.
+  // `?summary=skeleton|reveal|complete` shows the sample summary for the preview without a recording
+  // (`skeleton` holds on the skeleton).
   const { id, countdown, summary: summaryParam } = useLocalSearchParams<{
     id: string;
     countdown?: string;
@@ -71,7 +72,8 @@ export default function VisitDetailScreen() {
 
   // After a recording, this screen becomes the visit summary (Figma 293:6174).
   const stored = useSummary(id);
-  const previewSummary = summaryParam === 'reveal' || summaryParam === 'complete' ? summaryParam : undefined;
+  const previewSummary =
+    summaryParam === 'skeleton' || summaryParam === 'reveal' || summaryParam === 'complete' ? summaryParam : undefined;
   const [previewShown, setPreviewShown] = useState(previewSummary === 'complete');
   const summary: VisitSummary | undefined =
     stored ??
@@ -207,57 +209,55 @@ export default function VisitDetailScreen() {
             <StatusBadge visit={summary ? { ...visit, note: summary.status } : visit} fallbackToAppointment />
           </View>
 
-          {summary ? (
-            <>
-              <View style={styles.summaryDivider} />
-              <SummaryReveal
-                sections={summary.sections}
-                animate={!summary.revealed}
-                onShown={summaryShown}
-                onEdit={() => router.push({ pathname: '/edit-summary', params: { id: visit.id } })}
-                onImport={importSummary}
-              />
-            </>
+          <View style={styles.tabsWrap}>
+            <View style={styles.tabDivider} />
+            <UnderlineTabs tabs={TABS} selected={tab} onSelect={setTab} style={styles.tabs} />
+          </View>
+
+          {summary && tab === 'Summary' ? (
+            <SummaryReveal
+              sections={summary.sections}
+              animate={!summary.revealed}
+              holdSkeleton={!stored && previewSummary === 'skeleton'}
+              onShown={summaryShown}
+              onEdit={() => router.push({ pathname: '/edit-summary', params: { id: visit.id } })}
+              onImport={importSummary}
+            />
           ) : (
-            <>
-              <View style={styles.tabsWrap}>
-                <View style={styles.tabDivider} />
-                <UnderlineTabs tabs={TABS} selected={tab} onSelect={setTab} style={styles.tabs} />
+            <View style={styles.body}>
+              <LinearGradient
+                colors={Frame.wash}
+                locations={[0, 0.35, 0.65, 1]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 0.35, y: 1 }}
+                style={StyleSheet.absoluteFill}
+                pointerEvents="none"
+              />
+              <View style={styles.empty}>
+                <Image source={empty.icon} style={styles.emptyIcon} />
+                <Text style={styles.emptyText}>{empty.text}</Text>
               </View>
+            </View>
+          )}
 
-              <View style={styles.body}>
-                <LinearGradient
-                  colors={Frame.wash}
-                  locations={[0, 0.35, 0.65, 1]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 0.35, y: 1 }}
-                  style={StyleSheet.absoluteFill}
-                  pointerEvents="none"
-                />
-                <View style={styles.empty}>
-                  <Image source={empty.icon} style={styles.emptyIcon} />
-                  <Text style={styles.emptyText}>{empty.text}</Text>
+          {/* Pinned above the home indicator, over the tab content. Gone once there's a summary. */}
+          {!summary && (
+            <View style={[styles.card, { bottom: bottomInset + CARD_BOTTOM_GAP }]}>
+              <Text style={styles.cardTitle}>Ready to record?</Text>
+              <Text style={styles.cardText}>Start recording to capture this consultation.</Text>
+              {consent && <Text style={styles.consentNote}>{describeConsent(consent)}</Text>}
+              <PrimaryButton label="Start recording" onPress={startRecording} style={styles.recordButton} />
+              {micBlocked && (
+                <View style={styles.micBlocked}>
+                  <Text style={styles.micNote} accessibilityRole="alert">
+                    Ella needs microphone access to record.
+                  </Text>
+                  <Text style={styles.micLink} onPress={openSettings} accessibilityRole="link">
+                    {IS_SIMULATED ? 'Try again' : 'Open settings'}
+                  </Text>
                 </View>
-              </View>
-
-              {/* Pinned above the home indicator, over the tab content. */}
-              <View style={[styles.card, { bottom: bottomInset + CARD_BOTTOM_GAP }]}>
-                <Text style={styles.cardTitle}>Ready to record?</Text>
-                <Text style={styles.cardText}>Start recording to capture this consultation.</Text>
-                {consent && <Text style={styles.consentNote}>{describeConsent(consent)}</Text>}
-                <PrimaryButton label="Start recording" onPress={startRecording} style={styles.recordButton} />
-                {micBlocked && (
-                  <View style={styles.micBlocked}>
-                    <Text style={styles.micNote} accessibilityRole="alert">
-                      Ella needs microphone access to record.
-                    </Text>
-                    <Text style={styles.micLink} onPress={openSettings} accessibilityRole="link">
-                      {IS_SIMULATED ? 'Try again' : 'Open settings'}
-                    </Text>
-                  </View>
-                )}
-              </View>
-            </>
+              )}
+            </View>
           )}
         </>
       ) : (
@@ -316,12 +316,6 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     color: EllaColors.contentInk,
     textAlign: 'center',
-  },
-  summaryDivider: {
-    height: 4,
-    marginTop: 16,
-    borderRadius: 2,
-    backgroundColor: Frame.tabDivider,
   },
   patient: {
     flexDirection: 'row',

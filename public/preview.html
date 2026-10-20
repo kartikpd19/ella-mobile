@@ -296,6 +296,7 @@
         <option value="/recording?id=11&sim=quiet">Recording: quiet</option>
         <option value="/recording?id=11&sim=speaking">Recording: speaking</option>
         <option value="/recording?id=11&sim=paused">Recording: paused</option>
+        <option value="/visit/11?summary=skeleton">Visit summary: skeleton</option>
         <option value="/visit/11?summary=reveal">Visit summary: revealing</option>
         <option value="/visit/11?summary=complete">Visit summary: complete</option>
         <option value="/privacy">Privacy Policy</option>
@@ -445,6 +446,7 @@
     '/recording?id=11&sim=quiet': 'recording-quiet',
     '/recording?id=11&sim=speaking': 'recording-speaking',
     '/recording?id=11&sim=paused': 'recording-paused',
+    '/visit/11?summary=skeleton': 'summary-skeleton',
     '/visit/11?summary=reveal': 'summary-revealing',
     '/visit/11?summary=complete': 'summary-complete',
   };
@@ -546,7 +548,7 @@
     render();
   });
 
-  // Plays the summary reveal again from the start (a fresh load, so nothing is remembered).
+  // Plays the skeleton and summary reveal again from the start (a fresh load, so nothing is remembered).
   replay.addEventListener('click', () => {
     if (screen !== REVEAL) {
       screen = REVEAL;
