@@ -293,6 +293,9 @@
         <option value="home">Home</option>
         <option value="/visit/11">Visit detail</option>
         <option value="/visit/11?countdown=preview">Recording countdown</option>
+        <option value="/recording?id=11&sim=quiet">Recording: quiet</option>
+        <option value="/recording?id=11&sim=speaking">Recording: speaking</option>
+        <option value="/recording?id=11&sim=paused">Recording: paused</option>
         <option value="/privacy">Privacy Policy</option>
       </select>
     </label>
@@ -433,7 +436,12 @@
   let variant = DEFAULT_VARIANT;
 
   // Screens that share a path with another option get their own key.
-  const KEYS = { '/visit/11?countdown=preview': 'countdown' };
+  const KEYS = {
+    '/visit/11?countdown=preview': 'countdown',
+    '/recording?id=11&sim=quiet': 'recording-quiet',
+    '/recording?id=11&sim=speaking': 'recording-speaking',
+    '/recording?id=11&sim=paused': 'recording-paused',
+  };
 
   // URL key for a screen: "/verify?email=…" → "verify", "/" → "start", Home → "home".
   function keyOf(value) {

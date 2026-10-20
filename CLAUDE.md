@@ -19,7 +19,8 @@ Before declaring work done, run `npx tsc --noEmit` and `npx expo lint`.
 | `/welcome` | Permissions | Mic (required), notifications, calendar. Simulated prompts on web |
 | `/home` | Home | Draggable bottom sheet; three states (see below). Tapping a visit opens Visit Detail |
 | `/visit/[id]` | Visit Detail (`VisitDetailScreen`) | Figma `104:5304`. Header from the tapped visit (initials, name, age, patient ID, status badge); Summary / Transcript / Notes tabs with empty states; pinned "Ready to record?" card |
-| `/recording` | Placeholder | "Coming soon", reached only after consent and the countdown; shows the logged consent. Fades in (set in `_layout.tsx`) |
+| `/recording` | Recording (`RecordingScreen`) | Figma `104:4501` (quiet) / `104:4459` (speaking). Reached only after consent and the countdown. Fades in, swipe-back off (`_layout.tsx`). `?sim=quiet\|speaking\|paused` previews it in the browser |
+| `/processing` | Placeholder | "Coming soon" after End and save; shows the saved duration and note count |
 | `/privacy` | Placeholder | |
 
 Login → OTP → Welcome → Home. QR sign-in from Login goes straight to Home.
@@ -56,13 +57,25 @@ The doctor's name comes from the email (`john.smith@mayo.edu` → "Dr. John Smit
 
 ## Recording countdown (`RecordingCountdown`)
 
-After consent, `src/components/recording-countdown.tsx` (Figma `104:5359`–`104:5368`, "iPhone 16 - 65…68") covers Visit Detail full screen: **3**, **2**, **1** (0.8 s each), then "Wishing you a great session! 😊" (1.2 s), then `/recording`.
+After consent, `src/components/recording-countdown.tsx` (Figma `104:5359`–`104:5368`, "iPhone 16 - 65…68") covers Visit Detail full screen: **3**, **2**, **1** (0.8 s each), then "Wishing you a great session! 😊" (1.2 s), then `/recording` (`RecordingScreen`).
 
 - **Recording starts only in `onDone`**, after the final message. Nothing is captured during the countdown; when real capture and the timer are built, start them there.
 - One Reanimated clock drives every step, so each number fades and scales in (0.92 → 1, drifting to 1.03) and crossfades into the next; the message just fades in. Reduced motion drops the scaling. Light haptic tick per number.
 - **Cancel** (not in Figma, so it's a quiet `Link`-style label in `Content-muted`) and Android back return to Visit Detail without recording. Consent stays logged.
 - The overlay stays up under `/recording`'s fade-in and is cleared when Visit Detail regains focus.
 - `?countdown=preview` on `/visit/[id]` loops the countdown without consent or navigation (device preview only).
+
+## Recording screen (`RecordingScreen`)
+
+- Header from the visit (name, patient ID), a timer in HH:MM:SS from 00:00:00, the live audio visual, the red "Recording..." label with its mic glyph, and Add Note / End / Pause.
+- **Consent guard:** the screen records only when consent is logged for the visit (`useConsent`); otherwise it says consent is needed. Only the browser `?sim=` previews skip this, and they capture nothing.
+- `src/lib/recording-session.ts` wraps `expo-audio` (`useAudioRecorder` with metering, polled every 100 ms). Metering −50…−10 dBFS maps to level 0…1; the timer is the recorder's own duration, so it stops while paused. `allowsBackgroundRecording` plus the expo-audio plugin's `enableBackgroundRecording` (app.json) keep it recording in the background; needs a development build.
+- `recording-session.web.ts` simulates the level instead (speech comes and goes; `?sim=` fixes it to quiet, speaking or paused, starting at Figma's 00:23:12).
+- `AudioLevelVisual` (`src/components/audio-level-visual.tsx`): six 15px gradient dots; above level 0.08 each springs toward its height in the speaking frame, scaled by the level with its own wobble. Reduced motion uses short timings instead of springs.
+- **Pause** → "Paused" (muted) and **Resume** (`resume.svg`, drawn to match the Pause icon; Figma has no play icon). **Add Note** opens `AddNoteSheet`; the note keeps the recording time it was opened at and recording continues. **End**, the back arrow and Android back all open `EndRecordingDialog` ("End and save" / "Keep recording"). End stops, saves and replaces the route with `/processing`.
+- Notes and the finished recording (file URI, duration) live in `src/lib/recording-log.ts`, in memory until there's a backend.
+- The screen stays awake while open (`useKeepAwake`, including while paused).
+- `SecondaryButton` (design.md `Button - Secondary`) sits next to `PrimaryButton` in `auth-screen.tsx`.
 
 ## Design system
 
@@ -73,7 +86,7 @@ After consent, `src/components/recording-countdown.tsx` (Figma `104:5359`–`104
 
 ## Device preview
 
-With `npx expo start` running, open `http://localhost:8081/preview.html` (`public/preview.html`): phone/tablet frames with status bars and home indicators (phone from Figma; tablet follows iPadOS since Figma has no tablet frames), a **Screen** picker (Home adds a **Variant** dropdown: Not synced, Syncing, Visit list, Sheet expanded; **Recording countdown** loops the countdown, `?screen=countdown`), and deep links like `?screen=home&state=list&sheet=expanded#both` (the older `?screen=home%3Fstate%3Dlist` form still works). Files in `public/` ship with web exports.
+With `npx expo start` running, open `http://localhost:8081/preview.html` (`public/preview.html`): phone/tablet frames with status bars and home indicators (phone from Figma; tablet follows iPadOS since Figma has no tablet frames), a **Screen** picker (Home adds a **Variant** dropdown: Not synced, Syncing, Visit list, Sheet expanded; **Recording countdown** loops the countdown, `?screen=countdown`; **Recording: quiet / speaking / paused** use the simulated mic, `?screen=recording-speaking` etc.), and deep links like `?screen=home&state=list&sheet=expanded#both` (the older `?screen=home%3Fstate%3Dlist` form still works). Files in `public/` ship with web exports.
 
 ## Git
 

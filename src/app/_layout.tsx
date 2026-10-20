@@ -32,8 +32,10 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <Stack screenOptions={{ headerShown: false }}>
-        {/* Fades in over the recording countdown's final message instead of sliding. */}
-        <Stack.Screen name="recording" options={{ animation: 'fade' }} />
+        {/* Fades in over the recording countdown's final message instead of sliding. Swipe-back is
+            off so a recording can't be left by accident; its back arrow asks first. */}
+        <Stack.Screen name="recording" options={{ animation: 'fade', gestureEnabled: false }} />
+        <Stack.Screen name="processing" options={{ animation: 'fade' }} />
       </Stack>
     </GestureHandlerRootView>
   );

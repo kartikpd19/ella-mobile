@@ -67,6 +67,21 @@ export function PrimaryButton({ label, onPress, disabled = false, loading = fals
   );
 }
 
+type SecondaryButtonProps = Omit<PrimaryButtonProps, 'disabled' | 'loading'>;
+
+/** design.md `Button - Secondary`: outlined pill, same size as PrimaryButton. */
+export function SecondaryButton({ label, onPress, style }: SecondaryButtonProps) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={({ pressed }) => [styles.button, styles.buttonSecondary, style, pressed && styles.pressed]}>
+      <Text style={[styles.label, styles.labelSecondary]}>{label}</Text>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   floor: {
     position: 'absolute',
@@ -85,6 +100,13 @@ const styles = StyleSheet.create({
   buttonActive: {
     backgroundColor: EllaColors.button,
   },
+  buttonSecondary: {
+    // 1px less padding keeps it the same height as PrimaryButton once the border is added.
+    paddingVertical: 13.816,
+    borderWidth: 1,
+    borderColor: EllaColors.surfaceStrong,
+    backgroundColor: 'transparent',
+  },
   pressed: {
     opacity: 0.8,
   },
@@ -98,6 +120,9 @@ const styles = StyleSheet.create({
   },
   labelActive: {
     color: EllaColors.canvas,
+  },
+  labelSecondary: {
+    color: EllaColors.button,
   },
   // Keeps the button the same height as when it shows a label.
   spinner: {

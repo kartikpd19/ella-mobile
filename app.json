@@ -43,7 +43,8 @@
       [
         "expo-audio",
         {
-          "microphonePermission": "Ella uses the microphone to record your patient visits."
+          "microphonePermission": "Ella uses the microphone to record your patient visits.",
+          "enableBackgroundRecording": true
         }
       ],
       [
@@ -56,6 +57,7 @@
         "expo-speech-recognition",
         {
           "microphonePermission": "Ella uses the microphone to record your patient visits.",
+          "enableBackgroundRecording": true,
           "speechRecognitionPermission": "Ella listens for the patient's spoken consent before it starts recording.",
           "androidSpeechServicePackages": [
             "com.google.android.googlequicksearchbox"
