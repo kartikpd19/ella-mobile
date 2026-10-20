@@ -79,9 +79,11 @@ After consent, `src/components/recording-countdown.tsx` (Figma `104:5359`–`104
 
 ## Visit summary (`SummaryReveal`)
 
-After End and save, `generateSummary(visitId)` (`src/lib/visit-summary.ts`, sample content from Figma) and Visit Detail switches to frame `293:6174`: "Patient summary" title, the patient row with the status badge, a "Summary" label instead of tabs, then Reason For Visit, What the patient shared, Assessment, Medications, Follow-up. (The frame repeats "What the patient shared"; it's shown once.)
+After End and save, `generateSummary(visitId)` (`src/lib/visit-summary.ts`) and Visit Detail switches to frame `293:6174`: "Patient summary" title, the patient row with the status badge, a "Summary" label instead of tabs, then Reason For Visit, What the patient shared, Assessment, Medications, Follow-up. (The frame repeats "What the patient shared"; it's shown once.)
 
-- `src/components/summary-reveal.tsx`, one Reanimated clock: per section (1.05 s) the marker spins 0.6 s, the Figma asterisk marker fills in, the heading fades in, then the body fades in rising 8px; then the "Written by Ella…" note fades in and the Edit / Swipe to Import bar slides up (~5.9 s total). The scroll follows the section being written.
+- **Sample content** lives in `src/lib/sample-summary.ts` (edit it there): a fictional oncology follow-up before chemo cycle 4, about 2–3× the Figma text. It never names the patient or age because any visit can show it. A section has `text`, `bullets` or both. ` ` keeps a date on one line.
+
+- `src/components/summary-reveal.tsx`, one Reanimated clock: per section (1.05 s) the marker spins 0.6 s, the Figma asterisk marker fills in, the heading fades in, then the body fades in rising 8px; then the "Written by Ella…" note fades in and the Edit / Swipe to Import bar slides up (~5.9 s total). The scroll follows in two steps per section: enough for the marker and heading when it starts, then enough for the body as it appears; a section taller than the screen stops at its heading. The reveal time doesn't depend on text length, so longer content stays under 8 s.
 - Plays only while the summary isn't `revealed`; leaving mid-way still counts. Tap anywhere (below the top bar) to skip. Reduced motion shows it all at once. Edit and the slider stay disabled until the end.
 - Badge: Draft while revealing, In-review once shown, Imported after Swipe to Import (`markSummaryShown` keeps Imported).
 - `SwipeToConfirm` (`src/components/swipe-to-confirm.tsx`, design.md `Button- Swipe`): gesture-handler pan, confirms past 85%, turns green with a check, then Home after 0.9 s. The thumb's image ignores pointer events so mouse drags work on the web. Screen readers get an `activate` action. Edit → `/edit-summary`.

@@ -57,6 +57,7 @@ const BODY_AT = 800;
 const BODY_MS = 250;
 const SECTION_MS = BODY_AT + BODY_MS; // the next section starts once this one is done
 const BODY_RISE = 8;
+const HEADING_ROOM = 48; // marker, heading and the first line of the body
 const NOTE_MS = 300;
 const BAR_MS = 400;
 
@@ -98,6 +99,7 @@ export function SummaryReveal({ sections, animate, onShown, onEdit, onImport }: 
   const scrollY = useRef(0);
   const viewport = useRef(0);
   const layouts = useRef<LayoutRectangle[]>([]);
+  const sectionsY = useRef(0); // sections are measured inside their container
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const shown = useRef(false);
   const callbacks = useRef({ onShown });
@@ -120,12 +122,16 @@ export function SummaryReveal({ sections, animate, onShown, onEdit, onImport }: 
     finish();
   }
 
-  // Keeps the section being written on screen, above the bottom bar.
-  function follow(index: number) {
+  // Keeps the section being written on screen, above the bottom bar, in two gentle steps: just
+  // enough for its marker and heading when it starts, then enough for its body as that appears.
+  // A section taller than the space left stops at its heading, so the heading is never lost.
+  function follow(index: number, part: 'heading' | 'body') {
     const section = layouts.current[index];
     if (!section) return;
     const visible = viewport.current - (BAR_HEIGHT + Math.max(insets.bottom, HOME_INDICATOR_HEIGHT) + EllaSpacing.xl);
-    const target = section.y + section.height - visible;
+    const top = sectionsY.current + section.y;
+    const bottom = part === 'heading' ? top + HEADING_ROOM : top + section.height;
+    const target = Math.min(bottom - visible, top - EllaSpacing.md);
     if (target > scrollY.current) scroll.current?.scrollTo({ y: target, animated: true });
   }
 
@@ -136,7 +142,10 @@ export function SummaryReveal({ sections, animate, onShown, onEdit, onImport }: 
     }
     clock.value = withTiming(total, { duration: total, easing: Easing.linear });
     sections.forEach((_, i) => {
-      timers.current.push(setTimeout(() => follow(i), i * SECTION_MS));
+      timers.current.push(
+        setTimeout(() => follow(i, 'heading'), i * SECTION_MS),
+        setTimeout(() => follow(i, 'body'), i * SECTION_MS + BODY_AT),
+      );
     });
     timers.current.push(
       setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), noteAt),
@@ -174,7 +183,7 @@ export function SummaryReveal({ sections, animate, onShown, onEdit, onImport }: 
         contentContainerStyle={[styles.content, { paddingBottom: bottomInset + BAR_BOTTOM_GAP + BAR_HEIGHT + EllaSpacing.section }]}>
         <Text style={styles.label}>Summary</Text>
 
-        <View style={styles.sections}>
+        <View style={styles.sections} onLayout={(e) => (sectionsY.current = e.nativeEvent.layout.y)}>
           {sections.map((section, i) => (
             <Section
               key={section.title}

@@ -1,10 +1,11 @@
 import { useSyncExternalStore } from 'react';
 
+import { SAMPLE_SUMMARY } from '@/lib/sample-summary';
 import type { NoteStatus } from '@/lib/sample-visits';
 
 /**
- * The visit summary Ella writes after a recording ends. UI-only: generated from sample content
- * and kept in memory until there's a backend.
+ * The visit summary Ella writes after a recording ends. UI-only: generated from the sample in
+ * `sample-summary.ts` and kept in memory until there's a backend.
  */
 export type SummarySection = { title: string; text?: string; bullets?: string[] };
 export type VisitSummary = {
@@ -13,22 +14,6 @@ export type VisitSummary = {
   revealed: boolean;
   status: NoteStatus;
 };
-
-/** Sample content from the Figma frame "iPhone 16 - 79" (293:6174), one of each section. */
-export const SAMPLE_SUMMARY: SummarySection[] = [
-  { title: 'Reason For Visit', text: 'Good morning, Alex. How have you been feeling since our last appointment?' },
-  {
-    title: 'What the patient shared',
-    bullets: [
-      'Tired for 3 to 4 days after each infusion',
-      'Mild nausea, eased by current medication',
-      'Eating less, weight steady',
-    ],
-  },
-  { title: 'Assessment', text: 'Tolerating treatment well. Side effects expected and manageable.' },
-  { title: 'Medications', bullets: ['Ondansetron 8 mg', '[Medication name]'] },
-  { title: 'Follow-up', text: 'Return in 3 weeks, before cycle 5.' },
-];
 
 const summaries = new Map<string, VisitSummary>();
 const listeners = new Set<() => void>();

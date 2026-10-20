@@ -18,7 +18,8 @@ import { EllaColors, EllaFonts, EllaSpacing } from '@/constants/ella-tokens';
 import { getPermission, IS_SIMULATED, requestPermission } from '@/lib/permissions';
 import { describeConsent, logConsent, useConsent, type ConsentMethod } from '@/lib/consent-log';
 import { getVisit, initials } from '@/lib/sample-visits';
-import { markSummaryImported, markSummaryShown, SAMPLE_SUMMARY, useSummary, type VisitSummary } from '@/lib/visit-summary';
+import { SAMPLE_SUMMARY } from '@/lib/sample-summary';
+import { markSummaryImported, markSummaryShown, useSummary, type VisitSummary } from '@/lib/visit-summary';
 
 const TABS = ['Summary', 'Transcript', 'Notes'] as const;
 type Tab = (typeof TABS)[number];
