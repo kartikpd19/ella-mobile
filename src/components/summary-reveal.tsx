@@ -95,15 +95,25 @@ type SummaryRevealProps = {
   holdSkeleton?: boolean;
   /** The whole summary is visible: at the end of the reveal, on skip, or straight away. */
   onShown: () => void;
-  onEdit: () => void;
-  onImport: () => void;
+  /** Imported visits: the summary only, without Edit / Swipe to Import. */
+  readOnly?: boolean;
+  onEdit?: () => void;
+  onImport?: () => void;
 };
 
 /**
  * The visit summary, written in one section at a time like the AI Assess animation on the Ella web
  * app, after a short skeleton while Ella "writes". Tapping anywhere before the end skips to it.
  */
-export function SummaryReveal({ sections, animate, holdSkeleton = false, onShown, onEdit, onImport }: SummaryRevealProps) {
+export function SummaryReveal({
+  sections,
+  animate,
+  holdSkeleton = false,
+  readOnly = false,
+  onShown,
+  onEdit,
+  onImport,
+}: SummaryRevealProps) {
   const insets = useSafeAreaInsets();
   const reduceMotion = useReducedMotion();
   // Captured once: the parent marks the summary shown at the end, which must not restart anything.
@@ -211,7 +221,10 @@ export function SummaryReveal({ sections, animate, holdSkeleton = false, onShown
         onScroll={(e) => (scrollY.current = e.nativeEvent.contentOffset.y)}
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.content, { paddingBottom: bottomInset + BAR_BOTTOM_GAP + BAR_HEIGHT + EllaSpacing.section }]}>
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: bottomInset + EllaSpacing.section + (readOnly ? 0 : BAR_BOTTOM_GAP + BAR_HEIGHT) },
+        ]}>
         {play && (
           <Animated.View style={[styles.statusRow, statusStyle]}>
             <SummarySkeletonStatus />
@@ -240,23 +253,27 @@ export function SummaryReveal({ sections, animate, holdSkeleton = false, onShown
         </Animated.View>
       </ScrollView>
 
-      <LinearGradient colors={Frame.fade} style={styles.fade} pointerEvents="none" />
+      {!readOnly && (
+        <>
+          <LinearGradient colors={Frame.fade} style={styles.fade} pointerEvents="none" />
 
-      <Animated.View
-        style={[styles.bar, { bottom: bottomInset + BAR_BOTTOM_GAP }, barStyle]}
-        pointerEvents={done ? 'box-none' : 'none'}>
-        <Pressable
-          onPress={onEdit}
-          disabled={!done}
-          accessibilityRole="button"
-          accessibilityLabel="Edit summary"
-          accessibilityState={{ disabled: !done }}
-          style={({ pressed }) => [styles.edit, pressed && styles.pressed]}>
-          <Image source={require('@/assets/images/summary/edit.svg')} style={styles.editIcon} />
-          <Text style={styles.editText}>Edit</Text>
-        </Pressable>
-        <SwipeToConfirm label="Swipe to Import" doneLabel="Imported" disabled={!done} onConfirm={onImport} />
-      </Animated.View>
+          <Animated.View
+            style={[styles.bar, { bottom: bottomInset + BAR_BOTTOM_GAP }, barStyle]}
+            pointerEvents={done ? 'box-none' : 'none'}>
+            <Pressable
+              onPress={onEdit}
+              disabled={!done}
+              accessibilityRole="button"
+              accessibilityLabel="Edit summary"
+              accessibilityState={{ disabled: !done }}
+              style={({ pressed }) => [styles.edit, pressed && styles.pressed]}>
+              <Image source={require('@/assets/images/summary/edit.svg')} style={styles.editIcon} />
+              <Text style={styles.editText}>Edit</Text>
+            </Pressable>
+            <SwipeToConfirm label="Swipe to Import" doneLabel="Imported" disabled={!done} onConfirm={() => onImport?.()} />
+          </Animated.View>
+        </>
+      )}
 
       {!done && (
         <Pressable

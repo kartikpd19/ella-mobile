@@ -299,6 +299,11 @@
         <option value="/visit/11?summary=skeleton">Visit summary: skeleton</option>
         <option value="/visit/11?summary=reveal">Visit summary: revealing</option>
         <option value="/visit/11?summary=complete">Visit summary: complete</option>
+        <option value="/visit/11?summary=imported">Visit: imported summary</option>
+        <option value="/visit/11?summary=imported&tab=transcript">Transcript: text</option>
+        <option value="/visit/11?summary=imported&tab=transcript&keypoints=on">Transcript: text + key points</option>
+        <option value="/visit/11?summary=imported&tab=transcript&view=audio">Transcript: audio</option>
+        <option value="/visit/11?summary=imported&tab=transcript&view=audio&keypoints=on">Transcript: audio + key points</option>
         <option value="/privacy">Privacy Policy</option>
       </select>
     </label>
@@ -449,6 +454,11 @@
     '/visit/11?summary=skeleton': 'summary-skeleton',
     '/visit/11?summary=reveal': 'summary-revealing',
     '/visit/11?summary=complete': 'summary-complete',
+    '/visit/11?summary=imported': 'visit-imported',
+    '/visit/11?summary=imported&tab=transcript': 'transcript-text',
+    '/visit/11?summary=imported&tab=transcript&keypoints=on': 'transcript-text-key-points',
+    '/visit/11?summary=imported&tab=transcript&view=audio': 'transcript-audio',
+    '/visit/11?summary=imported&tab=transcript&view=audio&keypoints=on': 'transcript-audio-key-points',
   };
   const REVEAL = '/visit/11?summary=reveal';
 
@@ -496,7 +506,7 @@
 
     screenSelect.value = screen;
     variantPick.hidden = !isHome;
-    replay.hidden = !screen.includes('summary=');
+    replay.hidden = !/summary=(skeleton|reveal|complete)/.test(screen);
     variantSelect.value = variant;
 
     frames.forEach(f => { f.src = path; });

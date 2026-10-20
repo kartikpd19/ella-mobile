@@ -14,9 +14,13 @@ import { SummaryReveal } from '@/components/summary-reveal';
 import { useSimulatedPermissionPrompt } from '@/components/simulated-permission-prompt';
 import { UnderlineTabs } from '@/components/underline-tabs';
 import { StatusBadge } from '@/components/visit-row';
+import { VisitNotes } from '@/components/visit-notes';
+import { VisitTranscript } from '@/components/visit-transcript';
 import { EllaColors, EllaFonts, EllaSpacing } from '@/constants/ella-tokens';
 import { getPermission, IS_SIMULATED, requestPermission } from '@/lib/permissions';
 import { describeConsent, logConsent, useConsent, type ConsentMethod } from '@/lib/consent-log';
+import { currentDoctorName } from '@/lib/current-doctor';
+import { useRecordingNotes } from '@/lib/recording-log';
 import { getVisit, initials } from '@/lib/sample-visits';
 import { SAMPLE_SUMMARY } from '@/lib/sample-summary';
 import { markSummaryImported, markSummaryShown, useSummary, type VisitSummary } from '@/lib/visit-summary';
@@ -60,12 +64,23 @@ function goBack() {
 export default function VisitDetailScreen() {
   const insets = useSafeAreaInsets();
   // `?countdown=preview` plays the countdown on a loop for the device preview, without recording.
-  // `?summary=skeleton|reveal|complete` shows the sample summary for the preview without a recording
-  // (`skeleton` holds on the skeleton).
-  const { id, countdown, summary: summaryParam } = useLocalSearchParams<{
+  // `?summary=skeleton|reveal|complete|imported` shows the sample summary for the preview without a
+  // recording (`skeleton` holds on the skeleton). `?tab=transcript|notes`, `?view=audio` and
+  // `?keypoints=on` open the completed visit on a given tab and transcript view.
+  const {
+    id,
+    countdown,
+    summary: summaryParam,
+    tab: tabParam,
+    view: viewParam,
+    keypoints: keyPointsParam,
+  } = useLocalSearchParams<{
     id: string;
     countdown?: string;
     summary?: string;
+    tab?: string;
+    view?: string;
+    keypoints?: string;
   }>();
   const previewCountdown = countdown === 'preview';
   const visit = getVisit(id);
@@ -73,18 +88,26 @@ export default function VisitDetailScreen() {
   // After a recording, this screen becomes the visit summary (Figma 293:6174).
   const stored = useSummary(id);
   const previewSummary =
-    summaryParam === 'skeleton' || summaryParam === 'reveal' || summaryParam === 'complete' ? summaryParam : undefined;
+    summaryParam === 'skeleton' || summaryParam === 'reveal' || summaryParam === 'complete' || summaryParam === 'imported'
+      ? summaryParam
+      : undefined;
   const [previewShown, setPreviewShown] = useState(previewSummary === 'complete');
   const summary: VisitSummary | undefined =
     stored ??
-    (previewSummary && {
-      sections: SAMPLE_SUMMARY,
-      revealed: previewSummary === 'complete',
-      status: previewShown ? 'In-review' : 'Draft',
-    });
+    (previewSummary === 'imported' || visit?.note === 'Imported'
+      ? // Sample visits that are already imported open completed, with the sample summary.
+        { sections: SAMPLE_SUMMARY, revealed: true, status: 'Imported' }
+      : previewSummary && {
+          sections: SAMPLE_SUMMARY,
+          revealed: previewSummary === 'complete',
+          status: previewShown ? 'In-review' : 'Draft',
+        });
+  // Imported visits are complete: read-only summary, transcript and notes, nothing to record.
+  const completed = summary?.status === 'Imported';
+  const notes = useRecordingNotes(id);
   const [imported, setImported] = useState(false);
 
-  const [tab, setTab] = useState<Tab>('Summary');
+  const [tab, setTab] = useState<Tab>(tabParam === 'transcript' ? 'Transcript' : tabParam === 'notes' ? 'Notes' : 'Summary');
   const [micBlocked, setMicBlocked] = useState(false);
   const simulated = useSimulatedPermissionPrompt();
   const [consentOpen, setConsentOpen] = useState(false);
@@ -180,8 +203,9 @@ export default function VisitDetailScreen() {
         <Pressable onPress={goBack} accessibilityRole="button" accessibilityLabel="Back to Home" hitSlop={10}>
           <Image source={require('@/assets/images/visit/back.svg')} style={styles.icon} />
         </Pressable>
-        <Text style={summary ? styles.summaryTitle : styles.topTitle} accessibilityRole="header">
-          {summary ? 'Patient summary' : 'Visit detail'}
+        {/* Figma titles the Summary tab "Patient summary" and the Transcript frames "Visit detail". */}
+        <Text style={summary && tab === 'Summary' ? styles.summaryTitle : styles.topTitle} accessibilityRole="header">
+          {summary && tab === 'Summary' ? 'Patient summary' : 'Visit detail'}
         </Text>
         {/* Placeholder: the menu has no actions yet. */}
         <Pressable accessibilityRole="button" accessibilityLabel="More options" hitSlop={10}>
@@ -217,12 +241,22 @@ export default function VisitDetailScreen() {
           {summary && tab === 'Summary' ? (
             <SummaryReveal
               sections={summary.sections}
-              animate={!summary.revealed}
+              animate={!summary.revealed && !completed}
               holdSkeleton={!stored && previewSummary === 'skeleton'}
+              readOnly={completed}
               onShown={summaryShown}
               onEdit={() => router.push({ pathname: '/edit-summary', params: { id: visit.id } })}
               onImport={importSummary}
             />
+          ) : summary && tab === 'Transcript' ? (
+            <VisitTranscript
+              doctorName={currentDoctorName()}
+              patientName={visit.patient}
+              initialView={viewParam === 'audio' ? 'audio' : 'text'}
+              initialKeyPoints={keyPointsParam === 'on'}
+            />
+          ) : tab === 'Notes' && notes.length > 0 ? (
+            <VisitNotes notes={notes} />
           ) : (
             <View style={styles.body}>
               <LinearGradient

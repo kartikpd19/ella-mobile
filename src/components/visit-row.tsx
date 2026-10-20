@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { AuthColors } from '@/components/auth-screen';
 import { EllaColors, EllaFonts, EllaSpacing } from '@/constants/ella-tokens';
 import type { NoteStatus, Visit, VisitStatus } from '@/lib/sample-visits';
+import { useSummary } from '@/lib/visit-summary';
 
 // The Figma Recording Status component's icon; only the Draft one exists in the file so far.
 const DRAFT_ICON = require('@/assets/images/visit/status-draft.png');
@@ -30,12 +31,18 @@ const BADGES: Record<NoteStatus, { background: string; text: string; border?: st
 
 type BadgeStyle = { background: string; text: string; border?: string; label: string };
 
+/** The visit's note status: its generated summary's status once there is one (e.g. Imported). */
+function useNoteStatus(visit: Visit): NoteStatus | undefined {
+  return useSummary(visit.id)?.status ?? visit.note;
+}
+
 /**
  * The visit's `Recording Status` badge. With `fallbackToAppointment`, visits that have no
  * note yet show their appointment status instead (tinted with its status color).
  */
 export function StatusBadge({ visit, fallbackToAppointment = false }: { visit: Visit; fallbackToAppointment?: boolean }) {
-  let badge: BadgeStyle | undefined = visit.note ? BADGES[visit.note] : undefined;
+  const status = useNoteStatus(visit);
+  let badge: BadgeStyle | undefined = status ? BADGES[status] : undefined;
   if (!badge && fallbackToAppointment) {
     const color = RING_COLORS[visit.status];
     badge = { background: `${color}1F`, text: color, label: visit.status }; // 1F ≈ 12% alpha
@@ -49,7 +56,7 @@ export function StatusBadge({ visit, fallbackToAppointment = false }: { visit: V
         { backgroundColor: badge.background },
         badge.border ? { borderWidth: 1, borderStyle: 'dashed', borderColor: badge.border } : null,
       ]}>
-      {visit.note === 'Draft' && <Image source={DRAFT_ICON} style={styles.badgeIcon} />}
+      {status === 'Draft' && <Image source={DRAFT_ICON} style={styles.badgeIcon} />}
       <Text style={[styles.badgeLabel, { color: badge.text }]}>{badge.label}</Text>
     </View>
   );
@@ -57,7 +64,8 @@ export function StatusBadge({ visit, fallbackToAppointment = false }: { visit: V
 
 export function VisitRow({ visit, onPress }: { visit: Visit; onPress?: () => void }) {
   const ring = RING_COLORS[visit.status];
-  const note = visit.note ? BADGES[visit.note].label : undefined;
+  const status = useNoteStatus(visit);
+  const note = status ? BADGES[status].label : undefined;
 
   return (
     <Pressable

@@ -7,7 +7,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -24,6 +24,7 @@ import { EllaLogo } from '@/components/ella-logo';
 import { UnderlineTabs } from '@/components/underline-tabs';
 import { VisitRow } from '@/components/visit-row';
 import { EllaColors, EllaFonts, EllaRadius, EllaSpacing } from '@/constants/ella-tokens';
+import { currentDoctorName, rememberDoctorEmail } from '@/lib/current-doctor';
 import { doctorNameFromEmail } from '@/lib/doctor-name';
 import { formatLongDate } from '@/lib/format-date';
 import { isPast, SAMPLE_VISITS, type Visit } from '@/lib/sample-visits';
@@ -54,7 +55,10 @@ const SHEET_STATES: SyncState[] = ['empty', 'syncing', 'synced'];
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { email, state, sheet } = useLocalSearchParams<{ email?: string; state?: string; sheet?: string }>();
-  const doctorName = doctorNameFromEmail(email);
+  // Coming back from a visit (e.g. after Swipe to Import) arrives without `?email=`, so fall back
+  // to the doctor remembered on the first visit. Other screens (the transcript) use it too.
+  const doctorName = email ? doctorNameFromEmail(email) : currentDoctorName();
+  useEffect(() => rememberDoctorEmail(email), [email]);
   const today = formatLongDate(new Date());
 
   // `?state=` (used by the preview page) jumps straight to a Home state on first render.

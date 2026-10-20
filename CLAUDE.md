@@ -18,7 +18,7 @@ Before declaring work done, run `npx tsc --noEmit` and `npx expo lint`.
 | `/scan` | QR scanner | `expo-camera`; any QR is accepted. `?from=home` = re-sync from Home (returns to Home, hides "Use institute login instead") |
 | `/welcome` | Permissions | Mic (required), notifications, calendar. Simulated prompts on web |
 | `/home` | Home | Draggable bottom sheet; three states (see below). Tapping a visit opens Visit Detail |
-| `/visit/[id]` | Visit Detail (`VisitDetailScreen`) | Figma `104:5304`; once a recording is saved it becomes the visit summary (Figma `293:6174`, see below). Header from the tapped visit (initials, name, age, patient ID, status badge); Summary / Transcript / Notes tabs with empty states; pinned "Ready to record?" card |
+| `/visit/[id]` | Visit Detail (`VisitDetailScreen`) | Figma `104:5304`; once a recording is saved it becomes the visit summary (Figma `293:6174`), and once imported the completed visit (see below). Header from the tapped visit (initials, name, age, patient ID, status badge); Summary / Transcript / Notes tabs with empty states; pinned "Ready to record?" card |
 | `/recording` | Recording (`RecordingScreen`) | Figma `104:4501` (quiet) / `104:4459` (speaking). Reached only after consent and the countdown. Fades in, swipe-back off (`_layout.tsx`). `?sim=quiet\|speaking\|paused` previews it in the browser |
 | `/edit-summary` | Placeholder | "Coming soon" from Edit on the visit summary |
 | `/privacy` | Placeholder | |
@@ -41,7 +41,7 @@ The doctor's name comes from the email (`john.smith@mayo.edu` → "Dr. John Smit
 - Tabs on Home and Visit Detail share `src/components/underline-tabs.tsx`.
 - Start recording checks the microphone first (`src/lib/permissions.ts`) and asks if it isn't granted; denying shows a message with Open settings (Try again on web).
 - On web, permission prompts are simulated by `useSimulatedPermissionPrompt` (`src/components/simulated-permission-prompt.tsx`). Answers are remembered for the session in `permissions.web.ts`, so a mic granted on Welcome is still granted on Visit Detail.
-- URL overrides for previews: `?state=empty|syncing|list` and `?sheet=expanded`.
+- URL overrides for previews: `?state=empty|syncing|list` and `?sheet=expanded` (Home); `?summary=…`, `?tab=transcript|notes`, `?view=audio`, `?keypoints=on` (Visit Detail).
 
 ## Recording consent (`ConsentSheet`)
 
@@ -90,6 +90,19 @@ After End and save, `generateSummary(visitId)` (`src/lib/visit-summary.ts`) and 
 - `SwipeToConfirm` (`src/components/swipe-to-confirm.tsx`, design.md `Button- Swipe`): gesture-handler pan, confirms past 85%, turns green with a check, then Home after 0.9 s. The thumb's image ignores pointer events so mouse drags work on the web. Screen readers get an `activate` action. Edit → `/edit-summary`.
 - `?summary=skeleton|reveal|complete` on `/visit/[id]` shows the sample summary without recording (device preview); `skeleton` holds on the skeleton (`holdSkeleton`).
 
+## Completed visit (imported)
+
+After Swipe to Import the summary's status is `Imported` (`markSummaryImported`). `StatusBadge` and `VisitRow` read the summary store (`useNoteStatus`), so Home and Visit Detail both show the design.md `Status-imported` badge. Sample visits whose `note` is already `Imported` (Maria Alvarez) open the same way, with the sample summary.
+
+- No "Ready to record?" card, no skeleton or reveal, no Edit / Swipe bar (`SummaryReveal readOnly`).
+- Title per Figma: "Patient summary" on the Summary tab (`295:7415`), "Visit detail" on Transcript and Notes.
+- **Transcript** (`src/components/visit-transcript.tsx`, Figma `295:6306` / `296:8075` text, `295:6734` / `296:8166` audio): Transcript / Audio segmented control and a Key Points switch (off by default, drawn in code so the knob slides). Text: consecutive lines by one speaker grouped under "Name • 10:03 AM". The doctor is `currentDoctorName()` (`src/lib/current-doctor.ts`: Home remembers its `?email=`), the patient is the visit's patient, and `{patient}` in a line becomes their first name. Key Points on highlights each line's `keyPoints` in `#F2DBF8`.
+- **Audio**: `AudioWaveform` (`src/components/audio-waveform.tsx`): 2px bars, played `button` / unplayed `#D6D8DA`, bar heights from the Figma pattern. Tap or drag to scrub; with Key Points on, key moments (up to 15 s from each key line) are purple (`#DDACEA`, deeper once played) and tapping one jumps to its start. Clock start / end times below; Back 10 / Play-Pause / Forward 10 below that. Figma has no play icon (`play.svg` is drawn to match) and labels the middle button "End"; it's labelled Play / Pause.
+- Playback is simulated (`useSimulatedPlayback`, `src/lib/playback.ts`): there's no stored audio yet. It lives in the Transcript tab, so switching Transcript / Audio keeps the position.
+- Sample transcript: `src/lib/sample-transcript.ts`, 25 fictional lines matching the sample summary, 10:03–10:16 AM.
+- **Notes** (`src/components/visit-notes.tsx`): notes from Add Note (`useRecordingNotes`), each with its recording time in the Figma time chip; empty state if none.
+- After import Home falls back to the remembered doctor for its greeting (`router.dismissTo('/home')` drops `?email=`).
+
 ## Design system
 
 - `design.md` is the source of truth, transcribed from Figma (file `4FqTJq4zxxEAc6bGmCFu1R`). Code tokens live in `src/constants/ella-tokens.ts`; reuse them instead of hard-coding values.
@@ -99,7 +112,7 @@ After End and save, `generateSummary(visitId)` (`src/lib/visit-summary.ts`) and 
 
 ## Device preview
 
-With `npx expo start` running, open `http://localhost:8081/preview.html` (`public/preview.html`): phone/tablet frames with status bars and home indicators (phone from Figma; tablet follows iPadOS since Figma has no tablet frames), a **Screen** picker (Home adds a **Variant** dropdown: Not synced, Syncing, Visit list, Sheet expanded; **Recording countdown** loops the countdown, `?screen=countdown`; **Recording: quiet / speaking / paused** use the simulated mic, `?screen=recording-speaking` etc.; **Visit summary: skeleton / revealing / complete**, `?screen=summary-skeleton` etc., with a **Replay animation** button that plays skeleton + reveal), and deep links like `?screen=home&state=list&sheet=expanded#both` (the older `?screen=home%3Fstate%3Dlist` form still works). Files in `public/` ship with web exports.
+With `npx expo start` running, open `http://localhost:8081/preview.html` (`public/preview.html`): phone/tablet frames with status bars and home indicators (phone from Figma; tablet follows iPadOS since Figma has no tablet frames), a **Screen** picker (Home adds a **Variant** dropdown: Not synced, Syncing, Visit list, Sheet expanded; **Recording countdown** loops the countdown, `?screen=countdown`; **Recording: quiet / speaking / paused** use the simulated mic, `?screen=recording-speaking` etc.; **Visit summary: skeleton / revealing / complete**, `?screen=summary-skeleton` etc., with a **Replay animation** button that plays skeleton + reveal; **Visit: imported summary** and **Transcript: text / text + key points / audio / audio + key points**, `?screen=visit-imported`, `transcript-audio-key-points` etc.), and deep links like `?screen=home&state=list&sheet=expanded#both` (the older `?screen=home%3Fstate%3Dlist` form still works). Files in `public/` ship with web exports.
 
 ## Git
 

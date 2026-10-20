@@ -1,3 +1,5 @@
+import { useSyncExternalStore } from 'react';
+
 /**
  * Recordings and quick notes per visit. UI-only: kept in memory until there's a backend.
  * A note's `atMs` is the recording time it was taken at, so it lines up with the audio.
@@ -6,9 +8,12 @@ export type RecordingNote = { text: string; atMs: number };
 export type RecordingRecord = { uri: string | null; durationMs: number; notes: RecordingNote[]; endedAt?: Date };
 
 const records = new Map<string, RecordingRecord>();
+const listeners = new Set<() => void>();
+const NO_NOTES: RecordingNote[] = [];
 
 function update(visitId: string, change: (record: RecordingRecord) => RecordingRecord) {
   records.set(visitId, change(records.get(visitId) ?? { uri: null, durationMs: 0, notes: [] }));
+  listeners.forEach((listener) => listener());
 }
 
 export function addNote(visitId: string, text: string, atMs: number) {
@@ -17,6 +22,18 @@ export function addNote(visitId: string, text: string, atMs: number) {
 
 export function finishRecording(visitId: string, uri: string | null, durationMs: number) {
   update(visitId, (record) => ({ ...record, uri, durationMs, endedAt: new Date() }));
+}
+
+/** Notes taken with Add Note while recording this visit, oldest first. */
+export function useRecordingNotes(visitId: string | undefined): RecordingNote[] {
+  return useSyncExternalStore(
+    (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    () => (visitId && records.get(visitId)?.notes) || NO_NOTES,
+    () => (visitId && records.get(visitId)?.notes) || NO_NOTES,
+  );
 }
 
 /** 83_512 ms → "00:01:23" */
