@@ -326,7 +326,7 @@
       <div class="slot">
         <div class="device phone">
           <div class="screen">
-            <iframe title="Mobile preview" src="/" allow="camera; microphone"></iframe>
+            <iframe title="Mobile preview" src="about:blank" allow="camera; microphone"></iframe>
             <div class="status-bar" aria-hidden="true">
               <img class="notch" src="preview-assets/notch.svg" alt="">
               <div class="time">9:41</div>
@@ -343,7 +343,7 @@
         <div class="device tablet">
           <div class="camera"></div>
           <div class="screen">
-            <iframe title="Tablet preview" src="/" allow="camera; microphone"></iframe>
+            <iframe title="Tablet preview" src="about:blank" allow="camera; microphone"></iframe>
             <div class="status-bar" aria-hidden="true">
               <div class="time">9:41<span>Mon Oct 19</span></div>
               <img class="right" src="preview-assets/status-right.svg" alt="">
@@ -461,6 +461,8 @@
     '/visit/11?summary=imported&tab=transcript&view=audio&keypoints=on': 'transcript-audio-key-points',
   };
   const REVEAL = '/visit/11?summary=reveal';
+  // Where the app is served from: "" locally, "/ella-mobile" on GitHub Pages.
+  const BASE = location.pathname.replace(/\/[^/]*$/, '');
 
   // URL key for a screen: "/verify?email=…" → "verify", "/" → "start", Home → "home".
   function keyOf(value) {
@@ -509,8 +511,8 @@
     replay.hidden = !/summary=(skeleton|reveal|complete)/.test(screen);
     variantSelect.value = variant;
 
-    frames.forEach(f => { f.src = path; });
-    openApp.href = path;
+    frames.forEach(f => { f.src = BASE + path; });
+    openApp.href = BASE + path;
 
     const query = new URLSearchParams({ screen: keyOf(screen) });
     if (isHome) {
@@ -565,7 +567,7 @@
       render();
       return;
     }
-    frames.forEach(f => { f.src = `${REVEAL}&replay=${Date.now()}`; });
+    frames.forEach(f => { f.src = `${BASE}${REVEAL}&replay=${Date.now()}`; });
   });
 
   // Reloads whatever screen each frame is on now, even after navigating inside the app.

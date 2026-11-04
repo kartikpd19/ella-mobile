@@ -21,7 +21,7 @@ import { getPermission, IS_SIMULATED, requestPermission } from '@/lib/permission
 import { describeConsent, logConsent, useConsent, type ConsentMethod } from '@/lib/consent-log';
 import { currentDoctorName } from '@/lib/current-doctor';
 import { useRecordingNotes } from '@/lib/recording-log';
-import { getVisit, initials } from '@/lib/sample-visits';
+import { getVisit, initials, SAMPLE_VISITS } from '@/lib/sample-visits';
 import { SAMPLE_SUMMARY } from '@/lib/sample-summary';
 import { markSummaryImported, markSummaryShown, useSummary, type VisitSummary } from '@/lib/visit-summary';
 
@@ -59,6 +59,11 @@ function goBack() {
   } else {
     router.replace('/home');
   }
+}
+
+// Pre-renders a page per sample visit for static web exports (GitHub Pages has no fallback route).
+export function generateStaticParams(): { id: string }[] {
+  return SAMPLE_VISITS.map((v) => ({ id: v.id }));
 }
 
 export default function VisitDetailScreen() {

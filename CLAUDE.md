@@ -114,6 +114,8 @@ After Swipe to Import the summary's status is `Imported` (`markSummaryImported`)
 
 With `npx expo start` running, open `http://localhost:8081/preview.html` (`public/preview.html`): phone/tablet frames with status bars and home indicators (phone from Figma; tablet follows iPadOS since Figma has no tablet frames), a **Screen** picker (Home adds a **Variant** dropdown: Not synced, Syncing, Visit list, Sheet expanded; **Recording countdown** loops the countdown, `?screen=countdown`; **Recording: quiet / speaking / paused** use the simulated mic, `?screen=recording-speaking` etc.; **Visit summary: skeleton / revealing / complete**, `?screen=summary-skeleton` etc., with a **Replay animation** button that plays skeleton + reveal; **Visit: imported summary** and **Transcript: text / text + key points / audio / audio + key points**, `?screen=visit-imported`, `transcript-audio-key-points` etc.), and deep links like `?screen=home&state=list&sheet=expanded#both` (the older `?screen=home%3Fstate%3Dlist` form still works). Files in `public/` ship with web exports.
 
+Hosted preview: https://kartikpd19.github.io/ella-mobile/preview.html, deployed by `.github/workflows/pages.yml` on every push to `main`. The build sets `EXPO_BASE_URL=/ella-mobile` (read by `app.config.js`); `preview.html` works out the base from its own URL. Pages has no fallback route, so dynamic routes need `generateStaticParams` (as `visit/[id]` has). To test the subpath build locally from Git Bash, set `MSYS_NO_PATHCONV=1` or Bash turns `/ella-mobile` into a Windows path.
+
 ## Git
 
 - Remote: `https://github.com/kartikpd19/ella-mobile` (branch `main`).
