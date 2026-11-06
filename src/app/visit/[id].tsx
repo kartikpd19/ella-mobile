@@ -23,6 +23,7 @@ import { currentDoctorName } from '@/lib/current-doctor';
 import { useRecordingNotes } from '@/lib/recording-log';
 import { getVisit, initials, SAMPLE_VISITS } from '@/lib/sample-visits';
 import { SAMPLE_SUMMARY } from '@/lib/sample-summary';
+import { showToast } from '@/components/toast';
 import { markSummaryImported, markSummaryShown, useSummary, type VisitSummary } from '@/lib/visit-summary';
 
 const TABS = ['Summary', 'Transcript', 'Notes'] as const;
@@ -162,7 +163,10 @@ export default function VisitDetailScreen() {
   // The slider shows its success check briefly, then it's back to Home.
   useEffect(() => {
     if (!imported) return;
-    const timer = setTimeout(() => router.dismissTo('/home'), IMPORTED_PAUSE_MS);
+    const timer = setTimeout(() => {
+      router.dismissTo('/home');
+      showToast('Imported successfully');
+    }, IMPORTED_PAUSE_MS);
     return () => clearTimeout(timer);
   }, [imported]);
 

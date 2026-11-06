@@ -5,6 +5,8 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+import { ToastHost } from '@/components/toast';
+
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
@@ -37,6 +39,7 @@ export default function RootLayout() {
         <Stack.Screen name="recording" options={{ animation: 'fade', gestureEnabled: false }} />
         <Stack.Screen name="edit-summary" options={{ animation: 'fade' }} />
       </Stack>
+      <ToastHost />
     </GestureHandlerRootView>
   );
 }

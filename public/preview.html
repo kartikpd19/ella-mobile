@@ -300,6 +300,7 @@
         <option value="/visit/11?summary=reveal">Visit summary: revealing</option>
         <option value="/visit/11?summary=complete">Visit summary: complete</option>
         <option value="/visit/11?summary=imported">Visit: imported summary</option>
+        <option value="/home?state=list&toast=imported&email=john.smith@mayo.edu">Home: "Imported successfully" toast</option>
         <option value="/visit/11?summary=imported&tab=transcript">Transcript: text</option>
         <option value="/visit/11?summary=imported&tab=transcript&keypoints=on">Transcript: text + key points</option>
         <option value="/visit/11?summary=imported&tab=transcript&view=audio">Transcript: audio</option>
@@ -455,12 +456,14 @@
     '/visit/11?summary=reveal': 'summary-revealing',
     '/visit/11?summary=complete': 'summary-complete',
     '/visit/11?summary=imported': 'visit-imported',
+    '/home?state=list&toast=imported&email=john.smith@mayo.edu': 'imported-toast',
     '/visit/11?summary=imported&tab=transcript': 'transcript-text',
     '/visit/11?summary=imported&tab=transcript&keypoints=on': 'transcript-text-key-points',
     '/visit/11?summary=imported&tab=transcript&view=audio': 'transcript-audio',
     '/visit/11?summary=imported&tab=transcript&view=audio&keypoints=on': 'transcript-audio-key-points',
   };
   const REVEAL = '/visit/11?summary=reveal';
+  const TOAST = '/home?state=list&toast=imported&email=john.smith@mayo.edu';
   // Where the app is served from: "" locally, "/ella-mobile" on GitHub Pages.
   const BASE = location.pathname.replace(/\/[^/]*$/, '');
 
@@ -508,7 +511,7 @@
 
     screenSelect.value = screen;
     variantPick.hidden = !isHome;
-    replay.hidden = !/summary=(skeleton|reveal|complete)/.test(screen);
+    replay.hidden = !/summary=(skeleton|reveal|complete)|toast=/.test(screen);
     variantSelect.value = variant;
 
     frames.forEach(f => { f.src = BASE + path; });
@@ -562,6 +565,10 @@
 
   // Plays the skeleton and summary reveal again from the start (a fresh load, so nothing is remembered).
   replay.addEventListener('click', () => {
+    if (screen === TOAST) {
+      frames.forEach(f => { f.src = `${BASE}${TOAST}&replay=${Date.now()}`; });
+      return;
+    }
     if (screen !== REVEAL) {
       screen = REVEAL;
       render();

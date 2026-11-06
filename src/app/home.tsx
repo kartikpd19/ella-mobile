@@ -21,6 +21,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AuthColors, PrimaryButton, STATUS_BAR_HEIGHT } from '@/components/auth-screen';
 import { EllaLogo } from '@/components/ella-logo';
+import { showToast } from '@/components/toast';
 import { UnderlineTabs } from '@/components/underline-tabs';
 import { VisitRow } from '@/components/visit-row';
 import { EllaColors, EllaFonts, EllaRadius, EllaSpacing } from '@/constants/ella-tokens';
@@ -54,7 +55,16 @@ const SHEET_STATES: SyncState[] = ['empty', 'syncing', 'synced'];
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
-  const { email, state, sheet } = useLocalSearchParams<{ email?: string; state?: string; sheet?: string }>();
+  const { email, state, sheet, toast } = useLocalSearchParams<{
+    email?: string;
+    state?: string;
+    sheet?: string;
+    toast?: string;
+  }>();
+  // `?toast=imported` (preview page) shows the toast seen after Swipe to Import.
+  useEffect(() => {
+    if (toast === 'imported') showToast('Imported successfully');
+  }, [toast]);
   // Coming back from a visit (e.g. after Swipe to Import) arrives without `?email=`, so fall back
   // to the doctor remembered on the first visit. Other screens (the transcript) use it too.
   const doctorName = email ? doctorNameFromEmail(email) : currentDoctorName();
