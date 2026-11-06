@@ -11,7 +11,13 @@ export type ListenerHandlers = {
   onTranscript: (text: string) => void;
   /** Recognition stopped by itself (silence timeout, error); call start() again to resume. */
   onEnd: () => void;
+  /** Listening failed after it seemed to start; it won't restart until start() is called again. */
+  onProblem?: (problem: ListenerProblem) => void;
 };
+
+/** network: the browser's speech service can't be reached. no-start: recognition keeps ending
+ * before it starts. denied: microphone or speech recognition blocked. */
+export type ListenerProblem = 'network' | 'no-start' | 'denied';
 
 export type StartResult = 'started' | 'denied' | 'unavailable';
 
@@ -37,6 +43,7 @@ const LANG = 'en-US';
 const START_TIMEOUT_MS = 4000;
 const RESTART_DELAY_MS = 300;
 const MAX_RESTART_DELAY_MS = 4000;
+const MAX_FAILED_STARTS = 3;
 const LOCAL_CHECK_MS = 1000;
 
 function recognitionConstructor(): RecognitionConstructor | undefined {
@@ -98,6 +105,7 @@ export function createConsentListener(handlers: ListenerHandlers) {
   async function start(): Promise<StartResult> {
     if (!Ctor) return 'unavailable';
     const mine = ++generation;
+    if (!active) failedStarts = 0; // a fresh start (not a restart after a pause) gets new tries
     active = true;
 
     if (!micChecked) {
@@ -127,31 +135,49 @@ export function createConsentListener(handlers: ListenerHandlers) {
       if (text) handlers.onTranscript(text);
     };
     let started = false;
+    let resolved = false;
+    function fail(problem: ListenerProblem) {
+      if (!active || recognition !== next) return;
+      active = false;
+      console.warn(`[consent] listening stopped: ${problem}`);
+      handlers.onProblem?.(problem);
+    }
     next.onend = () => {
       // Pause before the sheet restarts it. Sessions that never started back off further, so a
-      // lasting problem can't spin in a tight loop.
+      // lasting problem can't spin in a loop; after a few it's reported instead.
+      if (!active || recognition !== next) return; // stopped, or replaced by a newer session
       failedStarts = started ? 0 : failedStarts + 1;
+      if (failedStarts >= MAX_FAILED_STARTS) return fail('no-start');
       const delay = Math.min(RESTART_DELAY_MS * 2 ** failedStarts, MAX_RESTART_DELAY_MS);
-      if (active && recognition === next) setTimeout(() => active && recognition === next && handlers.onEnd(), delay);
+      setTimeout(() => active && recognition === next && handlers.onEnd(), delay);
     };
 
     return new Promise<StartResult>((resolve) => {
-      const timeout = setTimeout(() => resolve('started'), START_TIMEOUT_MS);
+      const timeout = setTimeout(() => settle('started'), START_TIMEOUT_MS);
+      const settle = (result: StartResult) => {
+        clearTimeout(timeout);
+        if (!resolved) resolve(result);
+        resolved = true;
+      };
       next.onstart = () => {
         started = true;
-        clearTimeout(timeout);
-        resolve('started');
+        settle('started');
       };
       next.onerror = (event) => {
-        clearTimeout(timeout);
-        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        console.warn(`[consent] speech recognition error: ${event.error}`);
+        if (event.error === 'network') {
+          // Chrome's speech service can't be reached (offline, blocked, or a browser without it).
+          settle('started');
+          fail('network');
+        } else if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+          if (resolved) return fail('denied');
           active = false;
-          resolve('denied');
+          settle('denied');
         } else if (event.error === 'audio-capture' || event.error === 'language-not-supported') {
           active = false;
-          resolve('unavailable');
+          settle('unavailable');
         }
-        // Others ("no-speech", "network", "aborted") end the session; onend restarts it.
+        // Others ("no-speech", "aborted") end the session; onend restarts it.
       };
       try {
         next.start();

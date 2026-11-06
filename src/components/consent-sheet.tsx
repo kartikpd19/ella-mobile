@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { useEffect, useRef, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown, ZoomIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -8,7 +8,7 @@ import { HOME_INDICATOR_HEIGHT, PrimaryButton, SecondaryButton } from '@/compone
 import { SoundWave } from '@/components/sound-wave';
 import { EllaColors, EllaFonts, EllaRadius, EllaSpacing } from '@/constants/ella-tokens';
 import { classifyConsent } from '@/lib/consent-intent';
-import { createConsentListener } from '@/lib/consent-listener';
+import { createConsentListener, type ListenerProblem } from '@/lib/consent-listener';
 import type { ConsentMethod } from '@/lib/consent-log';
 
 /** Read aloud to the patient. Copied exactly from Figma frame 164:4784. */
@@ -56,6 +56,9 @@ export function ConsentSheet({ patientName, onConsent, onClose }: ConsentSheetPr
   const [status, setStatus] = useState<ListenerStatus>('starting');
   const [seconds, setSeconds] = useState(0);
   const [lastHeardAt, setLastHeardAt] = useState(0);
+  const [problem, setProblem] = useState<ListenerProblem | null>(null);
+  // Browser preview only: what speech recognition heard, so you can tell it's working.
+  const [heard, setHeard] = useState('');
 
   const phaseRef = useRef<Phase>('listening');
   const listener = useRef<ReturnType<typeof createConsentListener> | null>(null);
@@ -69,6 +72,7 @@ export function ConsentSheet({ patientName, onConsent, onClose }: ConsentSheetPr
   function handleTranscript(text: string) {
     if (phaseRef.current !== 'listening') return; // ignore answers while confirming manually or done
     setLastHeardAt(seconds);
+    setHeard(text);
     const answer = classifyConsent(text);
     if (answer === 'yes') {
       listener.current?.stop();
@@ -94,6 +98,7 @@ export function ConsentSheet({ patientName, onConsent, onClose }: ConsentSheetPr
       onEnd: () => {
         if (phaseRef.current === 'listening' || phaseRef.current === 'confirming') instance.start();
       },
+      onProblem: setProblem,
     });
     listener.current = instance;
     instance.start().then((result) => setStatus(result === 'started' ? 'listening' : result));
@@ -117,12 +122,18 @@ export function ConsentSheet({ patientName, onConsent, onClose }: ConsentSheetPr
     onClose();
   }
 
+  function listenAgain() {
+    setProblem(null);
+    listener.current?.start().then((result) => setStatus(result === 'started' ? 'listening' : result));
+  }
+
   /** Misheard, or the patient changed their mind: listen again from the start. */
   function askAgain() {
     setSeconds(0);
     setLastHeardAt(0);
+    setHeard('');
     changePhase('listening');
-    listener.current?.start().then((result) => setStatus(result === 'started' ? 'listening' : result));
+    listenAgain();
   }
 
   function confirmManually() {
@@ -130,7 +141,7 @@ export function ConsentSheet({ patientName, onConsent, onClose }: ConsentSheetPr
     onConsent('manual');
   }
 
-  const listening = status === 'listening' && phase === 'listening';
+  const listening = status === 'listening' && !problem && phase === 'listening';
   const showHint = listening && seconds - lastHeardAt >= NO_ANSWER_HINT_SECONDS;
   const timer = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 
@@ -157,7 +168,7 @@ export function ConsentSheet({ patientName, onConsent, onClose }: ConsentSheetPr
                 ? 'Consent received'
                 : phase === 'declined'
                   ? 'Consent not given'
-                  : status === 'listening'
+                  : listening
                     ? `${timer} Listening for consent…`
                     : 'Consent needed before recording'}
             </Text>
@@ -196,16 +207,32 @@ export function ConsentSheet({ patientName, onConsent, onClose }: ConsentSheetPr
               <View style={styles.cardText}>
                 <Text style={styles.cardTitle}>Listening for the patient&apos;s answer</Text>
                 <Text style={styles.cardBody}>
-                  {status === 'unavailable'
+                  {problem === 'network'
+                    ? 'Couldn’t reach the browser’s speech service. Check your connection and try again, or confirm consent manually below.'
+                    : problem === 'no-start'
+                      ? 'Listening couldn’t start in this browser. Try again, or confirm consent manually below.'
+                      : problem === 'denied' || status === 'denied'
+                        ? 'Microphone or speech recognition is blocked for this site. Allow it, then try again, or confirm consent manually below.'
+                        : status === 'unavailable'
                     ? 'Listening isn’t available on this device. Confirm consent manually below.'
-                    : status === 'denied'
-                      ? 'Speech recognition is turned off for Ella. Confirm consent manually below.'
-                      : showHint
-                        ? 'No answer heard yet. Try reading the script again.'
-                        : 'When they say yes, recording starts automatically.'}
+                          : showHint
+                            ? 'No answer heard yet. Try reading the script again.'
+                            : 'When they say yes, recording starts automatically.'}
                 </Text>
               </View>
             </View>
+          )}
+
+          {Platform.OS === 'web' && phase === 'listening' && heard !== '' && (
+            <Text style={styles.heard} numberOfLines={2}>
+              Heard: “{heard}”
+            </Text>
+          )}
+
+          {phase === 'listening' && (problem || status === 'denied') && (
+            <Text style={styles.link} onPress={listenAgain} accessibilityRole="button">
+              Try listening again
+            </Text>
           )}
 
           {phase === 'listening' && (
@@ -406,6 +433,15 @@ const styles = StyleSheet.create({
   checkIcon: {
     width: 20,
     height: 20,
+  },
+  heard: {
+    width: CONTENT_WIDTH,
+    maxWidth: '100%',
+    fontFamily: EllaFonts.interRegular,
+    fontSize: 12,
+    lineHeight: 16,
+    color: EllaColors.contentMuted,
+    textAlign: 'center',
   },
   linkWrap: {
     paddingHorizontal: EllaSpacing.xl,

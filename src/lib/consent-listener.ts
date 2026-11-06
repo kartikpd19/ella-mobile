@@ -9,7 +9,11 @@ export type ListenerHandlers = {
   onTranscript: (text: string) => void;
   /** Recognition stopped by itself (silence timeout, error); call start() again to resume. */
   onEnd: () => void;
+  /** Listening failed after it seemed to start (web only for now). */
+  onProblem?: (problem: ListenerProblem) => void;
 };
+
+export type ListenerProblem = 'network' | 'no-start' | 'denied';
 
 export type StartResult = 'started' | 'denied' | 'unavailable';
 
