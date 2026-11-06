@@ -1,10 +1,10 @@
 import { Image } from 'expo-image';
 import { useEffect, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown, ZoomIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { HOME_INDICATOR_HEIGHT, PrimaryButton } from '@/components/auth-screen';
+import { HOME_INDICATOR_HEIGHT, PrimaryButton, SecondaryButton } from '@/components/auth-screen';
 import { SoundWave } from '@/components/sound-wave';
 import { EllaColors, EllaFonts, EllaRadius, EllaSpacing } from '@/constants/ella-tokens';
 import { classifyConsent } from '@/lib/consent-intent';
@@ -117,6 +117,14 @@ export function ConsentSheet({ patientName, onConsent, onClose }: ConsentSheetPr
     onClose();
   }
 
+  /** Misheard, or the patient changed their mind: listen again from the start. */
+  function askAgain() {
+    setSeconds(0);
+    setLastHeardAt(0);
+    changePhase('listening');
+    listener.current?.start().then((result) => setStatus(result === 'started' ? 'listening' : result));
+  }
+
   function confirmManually() {
     listener.current?.stop();
     onConsent('manual');
@@ -182,15 +190,7 @@ export function ConsentSheet({ patientName, onConsent, onClose }: ConsentSheetPr
                 <Text style={styles.cardBody}>Starting recording…</Text>
               </View>
             </View>
-          ) : phase === 'declined' ? (
-            <View style={styles.card} accessibilityRole="alert">
-              <Text style={styles.cardTitle}>Consent not given</Text>
-              <Text style={[styles.cardBody, styles.center]}>
-                Recording won’t start. You can continue the visit without Ella.
-              </Text>
-              <PrimaryButton label="Close" onPress={close} style={styles.cardButton} />
-            </View>
-          ) : (
+          ) : phase === 'declined' ? null : (
             <View style={[styles.card, styles.cardRow, styles.listeningCard]}>
               <SoundWave color={EllaColors.contentInk} active={listening} />
               <View style={styles.cardText}>
@@ -217,6 +217,23 @@ export function ConsentSheet({ patientName, onConsent, onClose }: ConsentSheetPr
           )}
         </ScrollView>
       </Animated.View>
+
+      {/* Patient said no: a pop-up over the sheet. Recording can't start from here. */}
+      {phase === 'declined' && (
+        <Animated.View entering={FadeIn.duration(150)} style={[styles.scrim, styles.dialogWrap]}>
+          <Animated.View entering={ZoomIn.duration(180)} style={styles.dialog} accessibilityViewIsModal accessibilityRole="alert">
+            <Text style={styles.dialogTitle} accessibilityRole="header">
+              Consent denied
+            </Text>
+            <Text style={[styles.cardBody, styles.center]}>
+              {patientName} has denied consent to record this visit. Ella won’t record. You can continue the visit
+              without Ella.
+            </Text>
+            <PrimaryButton label="Close" onPress={close} style={styles.cardButton} />
+            <SecondaryButton label="Ask again" onPress={askAgain} style={styles.cardButton} />
+          </Animated.View>
+        </Animated.View>
+      )}
     </Modal>
   );
 }
@@ -333,6 +350,30 @@ const styles = StyleSheet.create({
     color: Frame.secondaryText,
   },
   center: {
+    textAlign: 'center',
+  },
+  dialogWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: EllaSpacing.xl,
+  },
+  // Same card as EndRecordingDialog (recording-sheets.tsx).
+  dialog: {
+    width: 317,
+    maxWidth: '100%',
+    alignItems: 'center',
+    gap: EllaSpacing.sm,
+    padding: EllaSpacing.lg,
+    borderWidth: 1,
+    borderColor: Frame.cardBorder,
+    borderRadius: 17,
+    backgroundColor: EllaColors.canvas,
+  },
+  dialogTitle: {
+    fontFamily: EllaFonts.interBold,
+    fontSize: 16,
+    letterSpacing: 0.96,
+    color: EllaColors.contentInk,
     textAlign: 'center',
   },
   cardButton: {
