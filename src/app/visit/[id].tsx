@@ -22,6 +22,7 @@ import { describeConsent, logConsent, useConsent, type ConsentMethod } from '@/l
 import { currentDoctorName } from '@/lib/current-doctor';
 import { useRecordingNotes } from '@/lib/recording-log';
 import { getVisit, initials, SAMPLE_VISITS } from '@/lib/sample-visits';
+import { setSyncState } from '@/lib/sync-state';
 import { SAMPLE_SUMMARY } from '@/lib/sample-summary';
 import { showToast } from '@/components/toast';
 import { markSummaryImported, markSummaryShown, useSummary, type VisitSummary } from '@/lib/visit-summary';
@@ -164,6 +165,9 @@ export default function VisitDetailScreen() {
   useEffect(() => {
     if (!imported) return;
     const timer = setTimeout(() => {
+      // Back to the visit list, even when Home was never opened (e.g. a preview link straight to
+      // this visit), which would otherwise show its "Sync now" state.
+      setSyncState('synced');
       router.dismissTo('/home');
       showToast('Imported successfully');
     }, IMPORTED_PAUSE_MS);
