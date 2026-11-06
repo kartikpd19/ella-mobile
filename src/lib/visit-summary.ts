@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
 
+import { shareStore } from '@/lib/device-sync';
 import { SAMPLE_SUMMARY } from '@/lib/sample-summary';
 import type { NoteStatus } from '@/lib/sample-visits';
 
@@ -15,12 +16,18 @@ export type VisitSummary = {
   status: NoteStatus;
 };
 
-const summaries = new Map<string, VisitSummary>();
+let summaries = new Map<string, VisitSummary>();
 const listeners = new Set<() => void>();
+
+const publish = shareStore<[string, VisitSummary][]>('visit-summary', () => [...summaries], (entries) => {
+  summaries = new Map(entries);
+  listeners.forEach((listener) => listener());
+});
 
 function update(visitId: string, change: (summary: VisitSummary | undefined) => VisitSummary) {
   summaries.set(visitId, change(summaries.get(visitId)));
   listeners.forEach((listener) => listener());
+  publish();
 }
 
 /** Called when a recording is saved. The next visit to the summary plays the reveal. */

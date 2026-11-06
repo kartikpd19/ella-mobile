@@ -156,7 +156,7 @@ export default function VisitDetailScreen() {
   }
 
   function importSummary() {
-    if (stored) markSummaryImported(id);
+    markSummaryImported(id); // preview summaries too, so Home shows the visit as Imported
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     setImported(true);
   }

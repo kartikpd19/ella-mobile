@@ -1,5 +1,7 @@
 import { useSyncExternalStore } from 'react';
 
+import { shareStore } from '@/lib/device-sync';
+
 /**
  * Whether the mobile app has been linked and synced. UI-only: there is no backend,
  * so a successful scan simulates a short sync and then shows sample visits.
@@ -12,9 +14,21 @@ let state: SyncState = 'empty';
 let timer: ReturnType<typeof setTimeout> | undefined;
 const listeners = new Set<() => void>();
 
+function notify() {
+  listeners.forEach((listener) => listener());
+}
+
+// Device preview: the other frame follows (the frame that started a sync also finishes it).
+const publish = shareStore<SyncState>('sync-state', () => state, (next) => {
+  clearTimeout(timer);
+  state = next;
+  notify();
+});
+
 function set(next: SyncState) {
   state = next;
-  listeners.forEach((listener) => listener());
+  notify();
+  publish();
 }
 
 /** Starts the simulated sync; it finishes on its own after a short delay. */

@@ -6,11 +6,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HOME_INDICATOR_HEIGHT } from '@/components/auth-screen';
 import { EllaColors, EllaFonts, EllaSpacing } from '@/constants/ella-tokens';
+import { shareStore } from '@/lib/device-sync';
 
 const TOAST_MS = 2500;
-
-// Not in Figma; reuses the consent sheet's success circle (semantic-success at 12%).
-const SUCCESS_FILL = 'rgba(5,177,105,0.12)';
 
 type Toast = { id: number; message: string };
 
@@ -22,10 +20,17 @@ function emit() {
   listeners.forEach((listener) => listener());
 }
 
+// Device preview: the toast shows on both devices.
+const publish = shareStore<Toast | null>('toast', () => current, (toast) => {
+  current = toast && { ...toast, id: nextId++ };
+  emit();
+});
+
 /** Shows a short success message above whatever screen is open, including after navigating. */
 export function showToast(message: string) {
   current = { id: nextId++, message };
   emit();
+  publish();
   AccessibilityInfo.announceForAccessibility(message);
 }
 
@@ -79,9 +84,10 @@ const styles = StyleSheet.create({
     paddingLeft: EllaSpacing.sm,
     paddingRight: EllaSpacing.md,
     borderRadius: 41,
-    backgroundColor: EllaColors.canvas,
+    // Not in Figma: a design.md semantic-success pill, so it stands out on white screens.
+    backgroundColor: EllaColors.semanticSuccess,
     shadowColor: EllaColors.contentInk,
-    shadowOpacity: 0.16,
+    shadowOpacity: 0.2,
     shadowRadius: 24,
     shadowOffset: { width: 0, height: 6 },
     elevation: 6,
@@ -92,7 +98,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: SUCCESS_FILL,
+    backgroundColor: EllaColors.canvas, // white circle keeps the green check visible
   },
   checkIcon: {
     width: 18,
@@ -102,6 +108,6 @@ const styles = StyleSheet.create({
     fontFamily: EllaFonts.interSemiBold,
     fontSize: 14,
     letterSpacing: 0.84,
-    color: EllaColors.contentInk,
+    color: EllaColors.canvas,
   },
 });

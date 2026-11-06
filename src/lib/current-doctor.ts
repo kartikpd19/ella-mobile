@@ -1,3 +1,4 @@
+import { shareStore } from '@/lib/device-sync';
 import { doctorNameFromEmail } from '@/lib/doctor-name';
 
 /**
@@ -6,8 +7,14 @@ import { doctorNameFromEmail } from '@/lib/doctor-name';
  */
 let email: string | undefined;
 
-export function rememberDoctorEmail(next: string | undefined) {
+const publish = shareStore<string | undefined>('current-doctor', () => email, (next) => {
   if (next) email = next;
+});
+
+export function rememberDoctorEmail(next: string | undefined) {
+  if (!next || next === email) return;
+  email = next;
+  publish();
 }
 
 export function currentDoctorName(): string {

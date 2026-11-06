@@ -1,5 +1,7 @@
 import { useSyncExternalStore } from 'react';
 
+import { shareStore } from '@/lib/device-sync';
+
 /**
  * Consent recorded on a visit before recording may start. UI-only: kept in memory until
  * there's a backend. Only the method and time are kept — never the audio or transcript.
@@ -7,13 +9,19 @@ import { useSyncExternalStore } from 'react';
 export type ConsentMethod = 'spoken' | 'manual';
 export type ConsentRecord = { method: ConsentMethod; at: Date };
 
-const records = new Map<string, ConsentRecord>();
+let records = new Map<string, ConsentRecord>();
 const listeners = new Set<() => void>();
+
+const publish = shareStore<[string, ConsentRecord][]>('consent-log', () => [...records], (entries) => {
+  records = new Map(entries);
+  listeners.forEach((listener) => listener());
+});
 
 export function logConsent(visitId: string, method: ConsentMethod): ConsentRecord {
   const record = { method, at: new Date() };
   records.set(visitId, record);
   listeners.forEach((listener) => listener());
+  publish();
   return record;
 }
 

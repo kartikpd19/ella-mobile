@@ -1,5 +1,7 @@
 import { useSyncExternalStore } from 'react';
 
+import { shareStore } from '@/lib/device-sync';
+
 /**
  * Recordings and quick notes per visit. UI-only: kept in memory until there's a backend.
  * A note's `atMs` is the recording time it was taken at, so it lines up with the audio.
@@ -7,13 +9,19 @@ import { useSyncExternalStore } from 'react';
 export type RecordingNote = { text: string; atMs: number };
 export type RecordingRecord = { uri: string | null; durationMs: number; notes: RecordingNote[]; endedAt?: Date };
 
-const records = new Map<string, RecordingRecord>();
+let records = new Map<string, RecordingRecord>();
 const listeners = new Set<() => void>();
 const NO_NOTES: RecordingNote[] = [];
+
+const publish = shareStore<[string, RecordingRecord][]>('recording-log', () => [...records], (entries) => {
+  records = new Map(entries);
+  listeners.forEach((listener) => listener());
+});
 
 function update(visitId: string, change: (record: RecordingRecord) => RecordingRecord) {
   records.set(visitId, change(records.get(visitId) ?? { uri: null, durationMs: 0, notes: [] }));
   listeners.forEach((listener) => listener());
+  publish();
 }
 
 export function addNote(visitId: string, text: string, atMs: number) {
